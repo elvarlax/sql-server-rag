@@ -1,18 +1,21 @@
 # SQL Server 2025 with Full-Text Search. Start with: docker compose up -d
 # The app itself runs locally (streamlit run app.py) so it can reach Ollama.
+name: sql-server-rag
+
 services:
-  sqlserver:
+  db:
     build:
       context: .
       dockerfile: Dockerfile.sqlserver
-    container_name: sqlserver
+    image: sql-server-rag
+    container_name: sql-server-rag
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: ${SQL_PASSWORD}
     ports:
       - "1433:1433"
     volumes:
-      - sqlserver_data:/var/opt/mssql
+      - data:/var/opt/mssql
 
 volumes:
-  sqlserver_data:
+  data:
