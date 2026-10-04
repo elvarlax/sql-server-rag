@@ -6,7 +6,7 @@ A small chat app that answers questions about a set of documents, using SQL Serv
 
 ![Asking how many days you can work from home. The answer cites the remote work policy and the sources are shown below it.](assets/screenshot.png)
 
-The demo documents are 14 short policy documents (in Icelandic) for a made-up accounting firm. You can ask in Icelandic or English, and every answer cites the passages it used.
+The demo documents are 14 short policy documents (in Icelandic) for a made-up accounting firm. I generated them with an LLM and then reviewed and edited them. You can ask in Icelandic or English, and every answer cites the passages it used.
 
 ## How it works
 
@@ -47,7 +47,7 @@ Open http://localhost:8501, click **Ingest documents**, and ask something. To us
 | Correct answer, tuning questions | 94% | 99% |
 | Off-topic questions refused, held-out | 5 of 5 | 5 of 5 |
 
-I wrote the questions myself, and I also wrote the documents, so treat these numbers as a sanity check rather than a benchmark.
+I wrote the questions myself with the documents in front of me, so treat these numbers as a sanity check rather than a benchmark.
 
 ## What I learned
 
