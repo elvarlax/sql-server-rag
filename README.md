@@ -4,7 +4,7 @@
 
 A small chat app that answers questions about a set of documents, using SQL Server 2025 as the vector database. I built it to try out the new vector features in SQL Server and to find out, by measuring, what actually makes the answers good.
 
-![Asking how many days you can work from home. The answer cites the remote work policy and the sources are shown below it.](assets/screenshot.png)
+![Asking how many vacation days employees get, then a follow-up about how far in advance to apply. Both answers cite the staff handbook, and the sources show how the follow-up was rewritten for search.](assets/demo.gif)
 
 The demo documents are 14 short policy documents (in Icelandic) for a made-up accounting firm. I generated them with an LLM and then reviewed and edited them. You can ask in Icelandic or English, and every answer cites the passages it used.
 

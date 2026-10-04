@@ -28,7 +28,7 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - `sql/sql_server_2025_examples.sql` — standalone T-SQL examples, checked against Microsoft Learn
 - `docker-compose.yml` + `Dockerfile.sqlserver` — SQL Server 2025 with Full-Text Search
 - `docs/` — 14 demo PDFs for a fictional company; only `Demo_*.pdf` are committed (see .gitignore)
-- `assets/screenshot.png` — README screenshot (taken with Playwright, outside the project venv)
+- `assets/demo.gif` — README demo (recorded with Playwright outside the project venv, converted with ffmpeg)
 - `questions.csv` — 120 evaluation questions (96 tuning, 24 holdout) in two sets (`set` column: `tuning` / `holdout`): question, source (`|` alternatives), expected answer text (`|` alternatives), previous question for follow-ups; the UI shows a few as examples
 - `evaluate.py` — scores retrieval and answers for both search modes, per set (needs live services)
 - **Never tune settings on the `holdout` set** — it measures how results carry over to new questions. Add new questions for tuning to the `tuning` set; if holdout results drive a change, write a fresh holdout set to confirm it
