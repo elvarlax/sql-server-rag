@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ruff.lint]
+# Catching any Exception is intentional in the UI, where errors are shown to the user
+ignore = ["BLE001"]

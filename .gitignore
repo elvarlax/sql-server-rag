@@ -1,0 +1,28 @@
+# Secrets
+.env
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+
+# Editors and OS
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db
+
+# Documents: only the demo PDFs are committed, your own files stay local
+docs/*
+!docs/.gitkeep
+!docs/Demo_*.pdf

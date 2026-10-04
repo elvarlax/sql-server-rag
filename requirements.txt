@@ -1,0 +1,15 @@
+# App
+streamlit>=1.65.0
+openai>=2.54.0
+ollama>=0.6.3
+pyodbc>=5.3.0
+python-dotenv>=1.2.4
+
+# Document loading (SimpleDirectoryReader; pdf via pypdf, docx via docx2txt)
+llama-index-core>=0.14.25
+llama-index-readers-file>=0.7.0
+docx2txt>=0.9
+
+# Development
+pytest>=9.1.1
+ruff>=0.16.10
