@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.Build.Sql/2.3.0">
   <PropertyGroup>
-    <Name>RagDemo</Name>
+    <Name>SqlServerRag</Name>
     <!-- SQL Server 2025 -->
     <DSP>Microsoft.Data.Tools.Schema.Sql.Sql170DatabaseSchemaProvider</DSP>
     <RunSqlCodeAnalysis>True</RunSqlCodeAnalysis>

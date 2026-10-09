@@ -28,17 +28,18 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - `rag/retrieval.py` — calls the search procedures: `search_ann` if `sys.vector_indexes` has the index, else `search_exact`; `search_hybrid`; `retrieve()` refuses when even the closest chunk is beyond `MAX_DISTANCE`, and filters vector results per chunk
 - `rag/chat.py` — rewrite follow-ups (`standalone_question`) → retrieve → prompt → LLM; returns an `Answer` NamedTuple (text, rows, mode, search_query)
 - `sql/sql_server_2025_examples.sql` — standalone T-SQL examples, checked against Microsoft Learn
-- `database/` — SQL Database Project: `Tables/`, `FullText/`, `Procedures/` (search_ann, search_exact, search_hybrid), `Security/` (roles), `Scripts/` (pre-deploy: PREVIEW_FEATURES; post-deploy: stopwords and the `rag_app` login); Query Store on (capture mode ALL) via project properties; `Dockerfile` builds and publishes it
+- `sql/playground.sql` — hands-on script against SqlServerRag for SSMS/VS Code (stored data, ANN vs exact, full-text/stoplist, hybrid, `EXECUTE AS LOGIN = 'rag_app'`, Query Store); run every section after changing the procedures or permissions
+- `database/` — SQL Database Project `SqlServerRag.sqlproj` (database `SqlServerRag`, named after the repo): `Tables/`, `FullText/`, `Procedures/` (search_ann, search_exact, search_hybrid; each has a runnable `EXEC` example in its header comment), `Security/` (roles), `Scripts/` (pre-deploy: PREVIEW_FEATURES; post-deploy: stopwords and the `rag_app` login); Query Store on (capture mode ALL) via project properties; `Dockerfile` builds and publishes it
 - `docker-compose.yml` + `Dockerfile.sqlserver` — SQL Server 2025 with Full-Text Search, plus the one-off `schema` service that deploys `database/`
 - `docs/` — 14 demo PDFs for a fictional company, generated with an LLM and then reviewed (the README says so); only `Demo_*.pdf` are committed (see .gitignore)
-- `assets/demo.gif` — README demo (recorded with Playwright outside the project venv, converted with ffmpeg)
+- `assets/demo.gif` — README demo: example question → follow-up → its sources (rewritten question) → off-topic question refused. Recorded with Playwright outside the project venv, converted with ffmpeg; re-record when the UI changes
 - `questions.csv` — 120 evaluation questions (96 tuning, 24 holdout) in two sets (`set` column: `tuning` / `holdout`): question, source (`|` alternatives), expected answer text (`|` alternatives), previous question for follow-ups; the UI shows a few as examples
 - `evaluate.py` — scores retrieval and answers for both search modes, per set; then ANN recall vs exact search and a Query Store cost report per procedure (clears Query Store first, connects as `sa` for that) — needs live services
 - **Never tune settings on the `holdout` set** — it measures how results carry over to new questions. Add new questions for tuning to the `tuning` set; if holdout results drive a change, write a fresh holdout set to confirm it
 - `tests/test_rag.py` — 22 unit tests, everything external is mocked
 - `tests/test_database.py` — integration tests (`pytest -m integration`, excluded by default): real SQL Server with the schema deployed, generated embeddings (no Ollama); they replace the chunks, so re-ingest afterwards
 - `database/deploy.sh` — entrypoint of the schema container: `publish` (default) or `drift` (DeployReport; fails on any difference)
-- `.github/workflows/ci.yml` — on push and PRs: `ruff` + unit tests; SQL project build with code analysis; then an integration job that starts SQL Server with docker compose, deploys the schema, runs `pytest -m integration` and the drift check (badge in the README)
+- `.github/workflows/ci.yml` — on `ubuntu-24.04` (pinned: `ubuntu-latest` moves to 26, which can break the ODBC driver install), on push and PRs: `ruff` + unit tests; SQL project build with code analysis; then an integration job that starts SQL Server with docker compose, deploys the schema, runs `pytest -m integration` and the drift check (badge in the README)
 - `README.md` — its results table comes from `python evaluate.py`; update it (and the "What I learned" numbers) whenever a change moves them
 - `LICENSE` — MIT
 - `requirements.txt` — exact versions (`==`); `.github/dependabot.yml` proposes weekly updates for pip and GitHub Actions, and CI tests them

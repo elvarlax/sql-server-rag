@@ -20,7 +20,7 @@ SQL_SERVER       = os.getenv("SQL_SERVER", "localhost,1433")
 SQL_APP_USER     = "rag_app"
 SQL_APP_PASSWORD = os.getenv("SQL_APP_PASSWORD", "")
 SQL_PASSWORD     = os.getenv("SQL_PASSWORD", "")
-DB_NAME          = "RagDemo"
+DB_NAME          = "SqlServerRag"
 
 # Documents and embeddings
 DOCS_PATH      = ROOT / "docs"

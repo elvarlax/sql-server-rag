@@ -5,6 +5,11 @@
 -- needs no access to the table (ownership chaining doesn't reach dynamic SQL).
 -- SIMILAR_TO only accepts a variable or column, and table columns come from the TABLE alias (c);
 -- only distance comes from the function alias (v).
+--
+-- Example (in SSMS). The app embeds the question with bge-m3; here an existing chunk's
+-- embedding stands in for it, so its own chunk should come back first with distance 0:
+--   DECLARE @q VECTOR(1024) = (SELECT TOP (1) embedding FROM dbo.chunks ORDER BY id);
+--   EXEC dbo.search_ann @query_vector = @q, @top_k = 5;
 CREATE PROCEDURE dbo.search_ann
     @query_vector VECTOR(1024),
     @top_k        INT

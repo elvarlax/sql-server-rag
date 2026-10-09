@@ -4,7 +4,7 @@
 -- Each section is standalone; placeholders like <your-resource> must be filled in.
 -- ============================================================
 
-USE RagDemo;
+USE SqlServerRag;
 GO
 
 -- ============================================================
@@ -399,7 +399,7 @@ GO
 -- ── Option 2: Change Tracking (lightweight, batch) ────────────────────────
 -- Records which rows changed (not the old values). A job polls and re-embeds them.
 -- This is also what the Azure Functions SQL trigger binding uses.
-ALTER DATABASE RagDemo SET CHANGE_TRACKING = ON (CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON);
+ALTER DATABASE SqlServerRag SET CHANGE_TRACKING = ON (CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON);
 ALTER TABLE documents ENABLE CHANGE_TRACKING;
 GO
 

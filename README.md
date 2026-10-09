@@ -4,7 +4,7 @@
 
 A small chat app that answers questions about a set of documents, using SQL Server 2025 as the vector database. I built it to try out the new vector features in SQL Server and to find out, by measuring, what makes the answers good.
 
-![Asking how many vacation days employees get, then a follow-up question. Both answers cite the staff handbook.](assets/demo.gif)
+![Asking how many vacation days employees get, then a follow-up question; the sources show how the follow-up was rewritten for search. A question the documents don't answer is refused.](assets/demo.gif)
 
 The demo documents are 14 short policy documents (in Icelandic) for a made-up company. I generated them with an LLM and reviewed them. You can ask in Icelandic or English, and every answer cites its sources.
 
@@ -38,6 +38,10 @@ streamlit run app.py
 
 Open http://localhost:8501, click **Ingest documents**, and ask something.
 
+## Try it in SQL
+
+Connect with SSMS or VS Code to `tcp:localhost,1433` as `sa` (password in `.env`, with "Trust server certificate" checked) and open [`sql/playground.sql`](sql/playground.sql). It walks through what's stored, vector search with and without the DiskANN index, full-text and hybrid search, what the app's login is allowed to do, and what each search costs in Query Store.
+
 ## Results
 
 I wrote 120 test questions with known answers. The held-out questions were written after all settings were frozen, so nothing was tuned to fit them. `python evaluate.py` runs them.
@@ -45,8 +49,8 @@ I wrote 120 test questions with known answers. The held-out questions were writt
 | | Hybrid search (default) | Vector search |
 |---|---|---|
 | Correct answer, held-out questions | **95%** | 89% |
-| Correct answer, tuning questions | 92% | 99% |
-| Off-topic questions refused, held-out | 4 of 5 | 5 of 5 |
+| Correct answer, tuning questions | 94% | 99% |
+| Off-topic questions refused, held-out | 5 of 5 | 5 of 5 |
 
 I wrote the questions myself, so treat these numbers as a sanity check, not a benchmark.
 
