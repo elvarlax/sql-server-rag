@@ -40,10 +40,15 @@ Open http://localhost:8501, click **Ingest documents**, and ask something.
 
 ## Try it in SQL
 
-Connect with SSMS or VS Code to `tcp:localhost,1433` as `sa` (password in `.env`, with "Trust server certificate" checked) and open [`sql/walkthrough.sql`](sql/walkthrough.sql). The database is called `SqlServerRag`.
+Connect with SSMS or VS Code to `tcp:localhost,1433` as `sa` (password in `.env`, with "Trust server certificate" checked). The database is called `SqlServerRag`. The [`sql/`](sql) folder has three scripts to run section by section:
 
-- **Part 1** walks through the app's own searches: what's stored, vector search with and without the DiskANN index, full-text and hybrid search, what the app's login is allowed to do, and what each search costs in Query Store.
-- **Part 2** tries other SQL Server 2025 features on the same documents, in a separate scratch database: vector functions, the `json` type and JSON indexes, regular expressions, fuzzy matching, temporal, ledger and graph tables, error handling, and Change Tracking for keeping embeddings in sync. The last section shows `AI_GENERATE_EMBEDDINGS` and calling a model from T-SQL; it's commented out because it needs an HTTPS model endpoint.
+| Script | What it covers |
+|---|---|
+| [`01-app-searches.sql`](sql/01-app-searches.sql) | The app's own searches: what's stored, vector search with and without the DiskANN index, full-text and hybrid search, the app login's permissions, and what each search costs in Query Store |
+| [`02-design-and-develop.sql`](sql/02-design-and-develop.sql) | Constraints and sequences, the `json` type and JSON indexes, views, functions and triggers, CTEs and window functions, regular expressions, fuzzy matching, temporal, ledger, graph and in-memory tables, partitioning, columnstore, and error handling |
+| [`03-secure-and-optimize.sql`](sql/03-secure-and-optimize.sql) | Row-Level Security (also in vector search), Dynamic Data Masking, column-level encryption, auditing, execution statistics, DMVs, isolation levels, Change Tracking for keeping embeddings in sync, and calling a model from T-SQL |
+
+Scripts 2 and 3 work on a copy of the documents in a separate scratch database, so the app's database stays as it is.
 
 ## Results
 
