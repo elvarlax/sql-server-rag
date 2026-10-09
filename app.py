@@ -129,7 +129,7 @@ st.caption("Answers come only from the indexed documents, with numbered citation
 
 if n_chunks == 0:
     st.info("No documents indexed yet. Add files to `./docs` and click **Ingest documents** "
-            "(SQL Server, with the schema deployed by `docker compose`, and Ollama must be running).", icon=":material/info:")
+            "(Ollama must be running).", icon=":material/info:")
     st.stop()
 
 for msg in st.session_state.messages:

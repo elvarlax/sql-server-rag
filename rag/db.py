@@ -32,7 +32,8 @@ def get_conn(user: str = SQL_APP_USER, password: str = SQL_APP_PASSWORD):
     """
     return closing(pyodbc.connect(
         f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={SQL_SERVER};"
-        f"DATABASE={DB_NAME};UID={user};PWD={password};TrustServerCertificate=yes;"
+        f"DATABASE={DB_NAME};UID={user};PWD={password};TrustServerCertificate=yes;ConnectRetryCount=0;",
+        timeout=5,  # fail after 5 s when SQL Server isn't reachable; without both settings the driver retries for ~15 s
     ))
 
 

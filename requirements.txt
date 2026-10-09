@@ -1,5 +1,3 @@
-# Exact versions, so a fresh install gets what was tested. Dependabot proposes updates, and CI tests them.
-
 # App
 streamlit==1.65.0
 openai==3.28.0
