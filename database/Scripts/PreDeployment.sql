@@ -1,0 +1,2 @@
+-- Vector indexes and VECTOR_SEARCH are preview features in SQL Server 2025
+ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON;

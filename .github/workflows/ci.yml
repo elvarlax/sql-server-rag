@@ -27,3 +27,62 @@ jobs:
 
       - name: Run unit tests
         run: pytest tests/ -v
+
+  database:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      # Validates the schema and runs SQL code analysis; produces the .dacpac that docker compose deploys
+      - name: Build SQL project
+        run: dotnet build database/RagDemo.sqlproj -c Release
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: [test, database]
+    env:
+      # Throwaway passwords for the CI database
+      SQL_PASSWORD: Ci-Sa-Passw0rd!
+      SQL_APP_PASSWORD: Ci-App-Passw0rd!
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install ODBC Driver 18
+        run: |
+          if ! odbcinst -q -d -n "ODBC Driver 18 for SQL Server" > /dev/null 2>&1; then
+            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc > /dev/null
+            curl -fsSL https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+            sudo apt-get update
+            sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
+          fi
+
+      - name: Start SQL Server and deploy the schema
+        run: |
+          docker compose up -d
+          docker compose wait schema
+
+      - name: Run integration tests
+        run: pytest -m integration -v
+
+      - name: Check for schema drift
+        run: docker compose run --rm schema drift
+
+      - name: Show container logs
+        if: failure()
+        run: docker compose logs

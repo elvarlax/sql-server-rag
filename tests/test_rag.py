@@ -64,16 +64,15 @@ def test_missing_embedding_model_gives_a_clear_error(_ollama):
 
 # ── Retrieval ─────────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize(("has_index", "expected_sql"), [(True, "VECTOR_SEARCH"), (False, "VECTOR_DISTANCE")])
+@pytest.mark.parametrize(("has_index", "procedure"), [(True, "dbo.search_ann"), (False, "dbo.search_exact")])
 @patch("rag.retrieval.embed", return_value="[0.1]")
-def test_vector_search_uses_diskann_only_when_the_index_exists(_embed, has_index, expected_sql):
+def test_vector_search_uses_diskann_only_when_the_index_exists(_embed, has_index, procedure):
     conn = MagicMock()
     with patch("rag.retrieval.has_vector_index", return_value=has_index):
         vector_search(conn, "question")
 
     sql = conn.execute.call_args.args[0]
-    assert expected_sql in sql
-    assert ("VECTOR_SEARCH" in sql) == has_index  # ANN with the index, exact ENN without it
+    assert f"EXEC {procedure} " in sql  # ANN with the index, exact ENN without it
 
 
 @patch("rag.retrieval.get_conn")

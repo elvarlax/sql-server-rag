@@ -1,4 +1,5 @@
-# SQL Server 2025 with Full-Text Search. Start with: docker compose up -d
+# SQL Server 2025 with Full-Text Search, plus a one-off container that deploys the schema
+# from the SQL project in database/. Start with: docker compose up -d --wait
 # The app itself runs locally (streamlit run app.py) so it can reach Ollama.
 name: sql-server-rag
 
@@ -16,6 +17,20 @@ services:
       - "1433:1433"
     volumes:
       - data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null
+      interval: 5s
+      retries: 30
+
+  schema:
+    build: database
+    image: sql-server-rag-schema
+    environment:
+      SQL_PASSWORD: ${SQL_PASSWORD}
+      SQL_APP_PASSWORD: ${SQL_APP_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   data:

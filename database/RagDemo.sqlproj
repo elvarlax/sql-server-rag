@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.Build.Sql/2.3.0">
+  <PropertyGroup>
+    <Name>RagDemo</Name>
+    <!-- SQL Server 2025 -->
+    <DSP>Microsoft.Data.Tools.Schema.Sql.Sql170DatabaseSchemaProvider</DSP>
+    <RunSqlCodeAnalysis>True</RunSqlCodeAnalysis>
+    <!-- SR0014 (data loss from casting) throws on the VECTOR type -->
+    <SqlCodeAnalysisRules>-Microsoft.Rules.Data.SR0014</SqlCodeAnalysisRules>
+    <!-- Query Store records every query, so evaluate.py can report what each search costs -->
+    <QueryStoreDesiredState>ReadWrite</QueryStoreDesiredState>
+    <QueryStoreCaptureMode>All</QueryStoreCaptureMode>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- System objects such as sys.sp_executesql -->
+    <PackageReference Include="Microsoft.SqlServer.Dacpacs.Master" Version="170.0.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <SqlCmdVariable Include="AppPassword" />
+  </ItemGroup>
+  <ItemGroup>
+    <Build Remove="Scripts\**" />
+    <PreDeploy Include="Scripts\PreDeployment.sql" />
+    <PostDeploy Include="Scripts\PostDeployment.sql" />
+  </ItemGroup>
+</Project>

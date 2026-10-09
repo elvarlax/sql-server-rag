@@ -12,7 +12,8 @@ from rag.config import (
     DB_NAME,
     DISKANN_MIN_ROWS,
     EMBED_DIMS,
-    SQL_PASSWORD,
+    SQL_APP_PASSWORD,
+    SQL_APP_USER,
     SQL_SERVER,
 )
 from rag.embeddings import embed_many
@@ -22,20 +23,16 @@ log = logging.getLogger(__name__)
 # SQL for a vector passed in as a JSON array string parameter
 VECTOR_PARAM = f"CAST(CAST(? AS NVARCHAR(MAX)) AS VECTOR({EMBED_DIMS}))"
 
-# Common Icelandic function words, excluded from full-text search
-ICELANDIC_STOPWORDS = """
-á að af aðeins allt alltaf annað annars auk eða eftir ef eiga ekki ég eins en enda er eru fá fær fæ fyrir
-frá geta getur get gera hafa hann hefur hér hjá hún hvað hvaða hvar hvenær hver hverjar hverjir hvernig
-hvort hversu í inn já má með meðan mig mér mín mun nei nú og okkar sem sé sig sín sinn sitt svo til um
-undir upp úr út var vera verður við yfir þá það þær þann þar þarf þegar þeir þess þessi þetta þig þú þín
-"""
 
+def get_conn(user: str = SQL_APP_USER, password: str = SQL_APP_PASSWORD):
+    """A pyodbc connection to the database, closed when the `with` block ends.
 
-def get_conn(db: str = DB_NAME):
-    """A pyodbc connection to SQL Server, closed when the `with` block ends."""
+    The app connects as rag_app, which can only run the search procedures and replace the
+    chunks (see database/Security). The schema itself is deployed from the SQL project in database/.
+    """
     return closing(pyodbc.connect(
         f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={SQL_SERVER};"
-        f"DATABASE={db};UID=sa;PWD={SQL_PASSWORD};TrustServerCertificate=yes;"
+        f"DATABASE={DB_NAME};UID={user};PWD={password};TrustServerCertificate=yes;"
     ))
 
 
@@ -52,23 +49,12 @@ def has_fulltext_index(conn) -> bool:
 
 
 def table_stats() -> tuple[int, bool]:
-    """(number of chunks, whether a DiskANN index exists); (0, False) if the table doesn't exist yet."""
+    """(number of chunks, whether a DiskANN index exists); (0, False) if the schema isn't deployed yet."""
     try:
         with get_conn() as conn:
             return conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0], has_vector_index(conn)
     except pyodbc.Error:
         return 0, False
-
-
-def setup_db() -> None:
-    """Create the database and enable preview features (needed for vector indexes and VECTOR_SEARCH)."""
-    # CREATE DATABASE can't run inside a transaction, so use autocommit
-    with get_conn("master") as conn:
-        conn.autocommit = True
-        conn.execute(f"IF DB_ID('{DB_NAME}') IS NULL CREATE DATABASE {DB_NAME}")
-    with get_conn() as conn:
-        conn.autocommit = True
-        conn.execute("ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON")
 
 
 def split(text: str) -> list[str]:
@@ -77,22 +63,6 @@ def split(text: str) -> list[str]:
     step = CHUNK_SIZE - CHUNK_OVERLAP
     chunks = (text[i:i + CHUNK_SIZE].strip() for i in range(0, len(text), step))
     return [c for c in chunks if len(c) >= 20]
-
-
-def create_fulltext_index(conn) -> None:
-    """Full-text index for hybrid search, with an Icelandic stoplist.
-
-    SQL Server has no built-in Icelandic stopwords, so without this list common words like
-    "á", "að" and "hvað" match almost every chunk and drown out the real search terms.
-    LANGUAGE 0 (neutral) indexes words as-is, since there's no Icelandic word breaker either;
-    queries must use the same language (see retrieval.hybrid_search).
-    """
-    conn.execute("IF NOT EXISTS (SELECT * FROM sys.fulltext_catalogs) CREATE FULLTEXT CATALOG ft_rag AS DEFAULT;")
-    # Recreated on every ingest so changes to the word list apply
-    conn.execute("IF EXISTS (SELECT * FROM sys.fulltext_stoplists WHERE name = 'icelandic') DROP FULLTEXT STOPLIST icelandic;")
-    conn.execute("CREATE FULLTEXT STOPLIST icelandic;")
-    conn.execute("".join(f"ALTER FULLTEXT STOPLIST icelandic ADD '{w}' LANGUAGE 0;" for w in ICELANDIC_STOPWORDS.split()))
-    conn.execute("CREATE FULLTEXT INDEX ON chunks(content LANGUAGE 0) KEY INDEX PK_chunks WITH STOPLIST = icelandic;")
 
 
 def create_vector_index(conn, n_rows: int) -> None:
@@ -105,12 +75,12 @@ def create_vector_index(conn, n_rows: int) -> None:
 
 
 def ingest(docs_path: Path) -> None:
-    """Rebuild the chunks table: load docs, split into chunks, embed them and build the indexes.
+    """Replace the chunks: load docs, split into chunks, embed them and rebuild the DiskANN index.
 
-    The table is recreated on every ingest, so its VECTOR size always matches the current
-    embedding model and vectors from different models can never be mixed.
+    The table, its full-text index and the search procedures come from the SQL project in
+    database/; the full-text index follows the new rows by itself (CHANGE_TRACKING AUTO).
     """
-    # Embed first (the slow part), so the existing table stays usable until the new data is ready
+    # Embed first (the slow part), so the existing chunks stay searchable until the new data is ready
     documents = SimpleDirectoryReader(str(docs_path)).load_data()
     rows = []
     for doc in documents:
@@ -120,17 +90,9 @@ def ingest(docs_path: Path) -> None:
             rows += [(source, chunk, vector) for chunk, vector in zip(chunks, embed_many(chunks))]
 
     with get_conn() as conn:
-        # Dropping the table also drops its full-text and DiskANN indexes
-        conn.execute("DROP TABLE IF EXISTS chunks")
-        # Named PK is required by the full-text index (KEY INDEX)
-        conn.execute(f"""
-            CREATE TABLE chunks (
-                id        INT IDENTITY CONSTRAINT PK_chunks PRIMARY KEY,
-                source    NVARCHAR(500) NOT NULL,
-                content   NVARCHAR(MAX),
-                embedding VECTOR({EMBED_DIMS})
-            )
-        """)
+        # A table with a DiskANN index is read-only, so drop the index before replacing the rows
+        conn.execute("DROP INDEX IF EXISTS idx_chunks_vector ON chunks")
+        conn.execute("DELETE FROM chunks")
         if rows:
             conn.cursor().executemany(f"INSERT INTO chunks (source, content, embedding) VALUES (?, ?, {VECTOR_PARAM})", rows)
         conn.commit()
@@ -138,11 +100,4 @@ def ingest(docs_path: Path) -> None:
 
         # Index creation can't run inside a transaction
         conn.autocommit = True
-        try:
-            create_fulltext_index(conn)
-        except pyodbc.Error as e:
-            log.warning("Full-text index failed (%s) — hybrid search will use vector search", e)
-        try:
-            create_vector_index(conn, len(rows))
-        except pyodbc.Error as e:
-            log.warning("DiskANN index failed (%s) — vector search will be exact (ENN)", e)
+        create_vector_index(conn, len(rows))

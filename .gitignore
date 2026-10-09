@@ -26,3 +26,7 @@ Thumbs.db
 docs/*
 !docs/.gitkeep
 !docs/Demo_*.pdf
+
+# SQL project build output
+database/bin/
+database/obj/

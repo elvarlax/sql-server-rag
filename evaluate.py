@@ -8,7 +8,11 @@ Results are reported separately for the two sets in the CSV:
   tuning  — questions used while choosing settings (models, cut-off, hybrid tuning)
   holdout — questions written after the settings were frozen, never used for tuning
 
-Needs SQL Server, Ollama and the LLM, with documents ingested.
+It also checks how many of the exact nearest chunks the DiskANN index finds (ANN recall), and
+reports from Query Store what each search procedure cost while the evaluation ran.
+
+Needs SQL Server, Ollama and the LLM, with documents ingested. The Query Store report connects
+as sa (SQL_PASSWORD), since clearing and reading Query Store needs more than the app's login has.
 Usage: python evaluate.py
 """
 import csv
@@ -16,10 +20,10 @@ import re
 import time
 
 from rag.chat import chat
-from rag.config import EMBED_MODEL, LLM_MODEL, QUESTIONS_PATH
-from rag.db import table_stats
+from rag.config import EMBED_MODEL, LLM_MODEL, QUESTIONS_PATH, SQL_PASSWORD, TOP_K
+from rag.db import get_conn, table_stats
 from rag.embeddings import embed
-from rag.retrieval import SEARCH_MODES
+from rag.retrieval import DECLARE_QUERY_VECTOR, SEARCH_MODES
 
 # Icelandic number words 1–12 in all inflections -> digits, so "tveimur vikum" matches the key "2 vik"
 NUMBER_WORDS = {
@@ -99,6 +103,57 @@ def evaluate(mode: str, questions: list[dict]) -> tuple[dict, list[str]]:
     return metrics, failures
 
 
+def ann_recall(questions: list[dict]) -> str:
+    """Share of the exact top-k chunks that the approximate (DiskANN) search also returns."""
+    found, total = 0, 0
+    with get_conn() as conn:
+        for q in questions:
+            ids = {}
+            for procedure in ("dbo.search_exact", "dbo.search_ann"):
+                sql = f"{DECLARE_QUERY_VECTOR} EXEC {procedure} @query_vector = @q, @top_k = ?"
+                ids[procedure] = {r.id for r in conn.execute(sql, embed(q["question"]), TOP_K).fetchall()}
+            found += len(ids["dbo.search_exact"] & ids["dbo.search_ann"])
+            total += len(ids["dbo.search_exact"])
+    return ratio(found, total)
+
+
+# Runtime stats per search procedure. search_ann runs its query as dynamic SQL, which Query Store
+# doesn't attribute to the procedure, so that query is recognised by its VECTOR_SEARCH call.
+# A procedure runs several statements, so its cost per call is the sum over them divided by calls.
+QUERY_STORE_REPORT = """
+    WITH per_query AS (
+        SELECT CASE WHEN t.query_sql_text LIKE N'%VECTOR_SEARCH(%' THEN N'search_ann'
+                    ELSE OBJECT_NAME(q.object_id) END AS procedure_name,
+            SUM(rs.count_executions) AS calls,
+            SUM(rs.avg_duration * rs.count_executions) AS duration_us,
+            SUM(rs.avg_cpu_time * rs.count_executions) AS cpu_us,
+            SUM(rs.avg_logical_io_reads * rs.count_executions) AS reads
+        FROM sys.query_store_query AS q
+        JOIN sys.query_store_query_text AS t ON t.query_text_id = q.query_text_id
+        JOIN sys.query_store_plan AS p ON p.query_id = q.query_id
+        JOIN sys.query_store_runtime_stats AS rs ON rs.plan_id = p.plan_id
+        GROUP BY q.query_id, q.object_id, t.query_sql_text
+    )
+    SELECT procedure_name, MAX(calls) AS calls, SUM(duration_us) / MAX(calls) / 1000 AS avg_ms,
+        SUM(cpu_us) / MAX(calls) / 1000 AS avg_cpu_ms, SUM(reads) / MAX(calls) AS avg_reads
+    FROM per_query
+    WHERE procedure_name IN (N'search_ann', N'search_exact', N'search_hybrid')
+    GROUP BY procedure_name
+    ORDER BY procedure_name
+"""
+
+
+def print_query_store_report() -> None:
+    with get_conn("sa", SQL_PASSWORD) as conn:
+        conn.execute("EXEC sys.sp_query_store_flush_db")
+        rows = conn.execute(QUERY_STORE_REPORT).fetchall()
+    print("\n## Search cost (Query Store)\n")
+    print("| Procedure | Calls | Avg. duration | Avg. CPU | Avg. logical reads |")
+    print("|---|---|---|---|---|")
+    for r in rows:
+        print(f"| {r.procedure_name} | {r.calls} | {r.avg_ms:.1f} ms | {r.avg_cpu_ms:.1f} ms | {r.avg_reads:.0f} |")
+
+
 def print_table(title: str, metrics: dict[str, dict]) -> None:
     labels = list(metrics)
     print(f"\n{title}\n")
@@ -115,6 +170,11 @@ if __name__ == "__main__":
     n_chunks, has_diskann = table_stats()
     print(f"\n{n_chunks} chunks · {'DiskANN (ANN)' if has_diskann else 'exact ENN'} · {EMBED_MODEL} · {LLM_MODEL}")
 
+    # Start Query Store from scratch, so the cost report covers this run only
+    with get_conn("sa", SQL_PASSWORD) as conn:
+        conn.autocommit = True
+        conn.execute("ALTER DATABASE CURRENT SET QUERY_STORE CLEAR")
+
     for set_name in ("tuning", "holdout"):
         subset = [q for q in questions if q["set"] == set_name]
         metrics, failures = {}, {}
@@ -126,3 +186,7 @@ if __name__ == "__main__":
                 print(f"\n{label} failures:")
                 for failure in items:
                     print(f"  - {failure}")
+
+    if has_diskann:
+        print(f"\nANN recall@{TOP_K} (DiskANN results that match exact search): {ann_recall(questions)}")
+    print_query_store_report()

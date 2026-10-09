@@ -1,5 +1,8 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
+# Integration tests need SQL Server with the schema deployed, and replace the chunks: pytest -m integration
+markers = ["integration: runs against a real SQL Server (see tests/test_database.py)"]
+addopts = "-m 'not integration'"
 
 [tool.ruff.lint]
 # Catching any Exception is intentional in the UI, where errors are shown to the user

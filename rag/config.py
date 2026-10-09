@@ -14,16 +14,19 @@ LLM_API_KEY  = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY", "")
 LLM_MODEL    = os.getenv("LLM_MODEL") or "gpt-6-luna"  # cheap, fast and good at Icelandic
 LLM_READY    = bool(LLM_API_KEY or LLM_BASE_URL)      # local servers like Ollama need no key
 
-# SQL Server
-SQL_SERVER   = os.getenv("SQL_SERVER", "localhost,1433")
-SQL_PASSWORD = os.getenv("SQL_PASSWORD", "")
-DB_NAME      = "RagDemo"
+# SQL Server. The app connects as rag_app (created when the schema in database/ is deployed);
+# the sa password is only needed by docker compose and by evaluate.py for its Query Store report.
+SQL_SERVER       = os.getenv("SQL_SERVER", "localhost,1433")
+SQL_APP_USER     = "rag_app"
+SQL_APP_PASSWORD = os.getenv("SQL_APP_PASSWORD", "")
+SQL_PASSWORD     = os.getenv("SQL_PASSWORD", "")
+DB_NAME          = "RagDemo"
 
 # Documents and embeddings
 DOCS_PATH      = ROOT / "docs"
 QUESTIONS_PATH = ROOT / "questions.csv"
 EMBED_MODEL    = "bge-m3"  # multilingual; handles Icelandic and cross-language questions
-EMBED_DIMS     = 1024      # must match EMBED_MODEL — changing model requires re-ingesting
+EMBED_DIMS     = 1024      # must match EMBED_MODEL and VECTOR(1024) in database/ — a new model means redeploying and re-ingesting
 CHUNK_SIZE     = 500       # characters
 CHUNK_OVERLAP  = 50        # characters shared by neighbouring chunks
 

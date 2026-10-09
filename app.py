@@ -13,17 +13,17 @@ from rag.config import (
     LLM_MODEL,
     LLM_READY,
     QUESTIONS_PATH,
-    SQL_PASSWORD,
+    SQL_APP_PASSWORD,
 )
-from rag.db import ingest, setup_db, table_stats
+from rag.db import ingest, table_stats
 from rag.retrieval import SEARCH_MODES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s")
 
 st.set_page_config(page_title="RAG on SQL Server 2025", page_icon=":material/manage_search:")
 
-if not (LLM_READY and SQL_PASSWORD):
-    st.error("Set SQL_PASSWORD and an LLM (LLM_API_KEY, plus LLM_BASE_URL for providers other than OpenAI) in .env")
+if not (LLM_READY and SQL_APP_PASSWORD):
+    st.error("Set SQL_APP_PASSWORD and an LLM (LLM_API_KEY, plus LLM_BASE_URL for providers other than OpenAI) in .env")
     st.stop()
 
 if "messages" not in st.session_state:
@@ -86,7 +86,6 @@ with st.sidebar:
     if st.button("Ingest documents", icon=":material/upload_file:", type="primary", use_container_width=True):
         with st.spinner("Chunking, embedding and storing in SQL Server…"):
             try:
-                setup_db()
                 ingest(DOCS_PATH)
                 cached_table_stats.clear()
                 st.rerun()
@@ -126,7 +125,7 @@ st.caption("Answers come only from the indexed documents, with numbered citation
 
 if n_chunks == 0:
     st.info("No documents indexed yet. Add files to `./docs` and click **Ingest documents** "
-            "(SQL Server and Ollama must be running).", icon=":material/info:")
+            "(SQL Server, with the schema deployed by `docker compose`, and Ollama must be running).", icon=":material/info:")
     st.stop()
 
 for msg in st.session_state.messages:

@@ -7,6 +7,8 @@ A portfolio side project (public on GitHub): a RAG chat app that uses SQL Server
 - **LLM**: any OpenAI-compatible API (OpenAI, Azure OpenAI, Ollama, Mistral, ...) via one `OpenAI` client, configured with `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`. Default `gpt-6-luna` — cheapest model with good Icelandic
 - **Embeddings**: `bge-m3` via Ollama (local, multilingual, 1024 dims) — replaced `nomic-embed-text` after evaluation (81% → 97%)
 - **Vector store**: SQL Server 2025 — `VECTOR(1024)` + DiskANN index (needs 100+ chunks; the 14 demo docs give 101)
+- **Schema**: SDK-style SQL Database Project (`database/`, Microsoft.Build.Sql) — table, full-text index + stoplist, search stored procedures, roles; `docker compose` builds the .dacpac and publishes it with SqlPackage
+- **Security**: the app logs in as `rag_app` (roles `rag_search`: EXECUTE on the search procedures; `rag_ingest`: SELECT/INSERT/DELETE/ALTER on `dbo.chunks`); `sa` only deploys the schema and reads Query Store in `evaluate.py`
 - **Search**: hybrid is the default (won on both held-out sets) — Full-Text Search (`FREETEXTTABLE`, custom Icelandic stoplist) + Reciprocal Rank Fusion over the top 20 of each ranking; vector-only mode is also available
 - **Ingestion**: LlamaIndex `SimpleDirectoryReader`
 - **UI**: Streamlit (theme in `.streamlit/config.toml`)
@@ -14,55 +16,69 @@ A portfolio side project (public on GitHub): a RAG chat app that uses SQL Server
 ## Pipeline
 ```
 docs/ → 500-char chunks (50 overlap) → bge-m3 → chunks.embedding VECTOR(1024)
-question → (follow-up? LLM rewrites it as a standalone question) → embed → VECTOR_SEARCH (ANN) / VECTOR_DISTANCE (ENN) / hybrid RRF
+question → (follow-up? LLM rewrites it as a standalone question) → embed → EXEC search_ann (VECTOR_SEARCH) / search_exact (VECTOR_DISTANCE) / search_hybrid (RRF)
          → nothing within MAX_DISTANCE? refuse without the LLM → numbered context → LLM (prompt refuses related-but-off-topic) → answer with [n] citations
 ```
 
 ## Key Files
 - `app.py` — Streamlit UI (sidebar, example questions, chat, sources) and logging setup
 - `rag/config.py` — constants and environment variables
-- `rag/db.py` — DB setup; `ingest()` rebuilds the table, full-text index (with stoplist) and DiskANN index
+- `rag/db.py` — `get_conn()` (as `rag_app` by default); `ingest()` drops the DiskANN index, replaces the rows and recreates the index (the table itself comes from `database/`)
 - `rag/embeddings.py` — Ollama `embed()` (cached, for questions) and `embed_many()` (batched, for ingest)
-- `rag/retrieval.py` — vector search (ANN if `sys.vector_indexes` has the index, else ENN), hybrid RRF; `retrieve()` refuses when even the closest chunk is beyond `MAX_DISTANCE`, and filters vector results per chunk
+- `rag/retrieval.py` — calls the search procedures: `search_ann` if `sys.vector_indexes` has the index, else `search_exact`; `search_hybrid`; `retrieve()` refuses when even the closest chunk is beyond `MAX_DISTANCE`, and filters vector results per chunk
 - `rag/chat.py` — rewrite follow-ups (`standalone_question`) → retrieve → prompt → LLM; returns an `Answer` NamedTuple (text, rows, mode, search_query)
 - `sql/sql_server_2025_examples.sql` — standalone T-SQL examples, checked against Microsoft Learn
-- `docker-compose.yml` + `Dockerfile.sqlserver` — SQL Server 2025 with Full-Text Search
+- `database/` — SQL Database Project: `Tables/`, `FullText/`, `Procedures/` (search_ann, search_exact, search_hybrid), `Security/` (roles), `Scripts/` (pre-deploy: PREVIEW_FEATURES; post-deploy: stopwords and the `rag_app` login); Query Store on (capture mode ALL) via project properties; `Dockerfile` builds and publishes it
+- `docker-compose.yml` + `Dockerfile.sqlserver` — SQL Server 2025 with Full-Text Search, plus the one-off `schema` service that deploys `database/`
 - `docs/` — 14 demo PDFs for a fictional company, generated with an LLM and then reviewed (the README says so); only `Demo_*.pdf` are committed (see .gitignore)
 - `assets/demo.gif` — README demo (recorded with Playwright outside the project venv, converted with ffmpeg)
 - `questions.csv` — 120 evaluation questions (96 tuning, 24 holdout) in two sets (`set` column: `tuning` / `holdout`): question, source (`|` alternatives), expected answer text (`|` alternatives), previous question for follow-ups; the UI shows a few as examples
-- `evaluate.py` — scores retrieval and answers for both search modes, per set (needs live services)
+- `evaluate.py` — scores retrieval and answers for both search modes, per set; then ANN recall vs exact search and a Query Store cost report per procedure (clears Query Store first, connects as `sa` for that) — needs live services
 - **Never tune settings on the `holdout` set** — it measures how results carry over to new questions. Add new questions for tuning to the `tuning` set; if holdout results drive a change, write a fresh holdout set to confirm it
 - `tests/test_rag.py` — 22 unit tests, everything external is mocked
-- `.github/workflows/ci.yml` — runs `ruff check .` and `pytest` on push and PRs (badge in the README)
+- `tests/test_database.py` — integration tests (`pytest -m integration`, excluded by default): real SQL Server with the schema deployed, generated embeddings (no Ollama); they replace the chunks, so re-ingest afterwards
+- `database/deploy.sh` — entrypoint of the schema container: `publish` (default) or `drift` (DeployReport; fails on any difference)
+- `.github/workflows/ci.yml` — on push and PRs: `ruff` + unit tests; SQL project build with code analysis; then an integration job that starts SQL Server with docker compose, deploys the schema, runs `pytest -m integration` and the drift check (badge in the README)
 - `README.md` — its results table comes from `python evaluate.py`; update it (and the "What I learned" numbers) whenever a change moves them
 - `LICENSE` — MIT
 
 ## SQL Server 2025 gotchas
 - `VECTOR_SEARCH`: `SIMILAR_TO` must be a variable or column (declare `@q` first), and table columns come from the TABLE alias, not the function alias
-- A DiskANN index needs 100+ rows and makes the table read-only — `ingest()` drops and recreates the whole table
+- A DiskANN index needs 100+ rows and makes the table read-only — `ingest()` drops the index, replaces the rows and recreates it; it's not in the SQL project, and publishing uses `DropIndexesNotInSource=False` so it survives
+- A procedure using `VECTOR_SEARCH` can't be created before the vector index exists (Msg 42227) — `search_ann` runs it as dynamic SQL, `WITH EXECUTE AS OWNER` so a caller that's only in `rag_search` needs no table access
+- SQL Server 2025 (CU9) uses `VECTOR_SEARCH(..., TOP_N = n)`; the newer `SELECT TOP (n) WITH APPROXIMATE` syntax on Microsoft Learn is Azure SQL only for now (syntax error here)
+- pyodbc sends long strings as `ntext`, which can't convert to `VECTOR` — declare `@q VECTOR(1024)` from the JSON string first, then `EXEC proc @query_vector = @q`
+- DacFx models a full-text stoplist but not its words (`ALTER FULLTEXT STOPLIST ... ADD` fails to build) — the post-deploy script adds missing words and repopulates the index
+- `docker compose up --wait` doesn't wait for the one-off `schema` service to finish — use `docker compose wait schema`
 - Fuzzy matching functions don't support `SQL_*` collations (the Docker default) — use `COLLATE`
 - No Icelandic stoplist or word breaker — the full-text index and `FREETEXTTABLE` queries both use `LANGUAGE 0`, with a custom stoplist; `DROP FULLTEXT STOPLIST IF EXISTS` isn't supported (use `IF EXISTS (...) DROP ...;`) and stoplist statements need a `;`
 - PDF text from justified paragraphs has runs of spaces — `split()` collapses them
 
 ## Coding Rules
-- Keep it as simple as possible — no features beyond the RAG pipeline and its UI
+- Keep it as simple as possible — no features beyond the RAG pipeline and its UI. Database practices around it (SQL project, stored procedures, least-privilege login, Query Store) are in scope
 - Measure retrieval/prompt changes with `python evaluate.py` before keeping them (e.g. a hybrid distance cut-off and sentence-aware chunking both measured worse, so neither is used); don't add tuning parameters that only win a single question
 - Don't swallow errors to fall back silently — check state explicitly (e.g. `has_vector_index`, `has_fulltext_index`) so real failures surface
 - No unnecessary abstractions
 - English UI and English comments
 - Secrets in `.env`, never hardcoded
-- `EMBED_DIMS` must match `EMBED_MODEL`; `ingest()` recreates the table, so changing model just means re-ingesting
+- `EMBED_DIMS` must match `EMBED_MODEL` and `VECTOR(1024)` in `database/` (table and procedures); changing model means editing those, redeploying and re-ingesting
 - `MAX_DISTANCE` (0.52) is calibrated for bge-m3 on the tuning set — recalibrate if the embedding model changes. Plausible off-topic questions sit as close as real ones, so refusing those is the prompt's job, not the cut-off's
 - Search modes are `"hybrid"` (default) and `"vector"` (ANN with DiskANN, or exact ENN without the index); the demo corpus is just over 100 chunks, so `evaluate.py` prints whether DiskANN was used
 - Vectors are sent to SQL Server as JSON array strings
 - The `rag` package must not import streamlit
-- Only SQL Server runs in Docker; the app runs locally so it can reach Ollama
+- Only SQL Server (and the one-off schema deploy) runs in Docker; the app runs locally so it can reach Ollama
+- Schema changes go in `database/`, never in Python; the app's login can't create or drop objects
+- Secrets: `SQL_PASSWORD` (sa) is only for docker compose and evaluate.py's Query Store report; the app uses `SQL_APP_PASSWORD`
 
 ## Running
 ```bash
-docker compose up -d      # SQL Server
+docker compose up -d      # SQL Server + schema deploy
+docker compose wait schema  # wait for the deploy (exit 0 = done)
+dotnet build database -c Release  # build/validate the SQL project locally (optional)
 streamlit run app.py      # App on http://localhost:8501
 pytest                    # Unit tests
+pytest -m integration     # Integration tests (needs the database; replaces the chunks)
+docker compose run --rm schema drift  # Schema drift check
 python evaluate.py        # Quality evaluation (needs SQL Server, Ollama, LLM)
 ruff check .              # Lint
 ```
