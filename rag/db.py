@@ -49,12 +49,9 @@ def has_fulltext_index(conn) -> bool:
 
 
 def table_stats() -> tuple[int, bool]:
-    """(number of chunks, whether a DiskANN index exists); (0, False) if the schema isn't deployed yet."""
-    try:
-        with get_conn() as conn:
-            return conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0], has_vector_index(conn)
-    except pyodbc.Error:
-        return 0, False
+    """(number of chunks, whether a DiskANN index exists)."""
+    with get_conn() as conn:
+        return conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0], has_vector_index(conn)
 
 
 def split(text: str) -> list[str]:

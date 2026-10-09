@@ -41,6 +41,7 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - `.github/workflows/ci.yml` — on push and PRs: `ruff` + unit tests; SQL project build with code analysis; then an integration job that starts SQL Server with docker compose, deploys the schema, runs `pytest -m integration` and the drift check (badge in the README)
 - `README.md` — its results table comes from `python evaluate.py`; update it (and the "What I learned" numbers) whenever a change moves them
 - `LICENSE` — MIT
+- `requirements.txt` — exact versions (`==`); `.github/dependabot.yml` proposes weekly updates for pip and GitHub Actions, and CI tests them
 
 ## SQL Server 2025 gotchas
 - `VECTOR_SEARCH`: `SIMILAR_TO` must be a variable or column (declare `@q` first), and table columns come from the TABLE alias, not the function alias
