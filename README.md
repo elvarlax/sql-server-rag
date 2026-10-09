@@ -40,7 +40,10 @@ Open http://localhost:8501, click **Ingest documents**, and ask something.
 
 ## Try it in SQL
 
-Connect with SSMS or VS Code to `tcp:localhost,1433` as `sa` (password in `.env`, with "Trust server certificate" checked) and open [`sql/playground.sql`](sql/playground.sql). The database is called `SqlServerRag`. It walks through what's stored, vector search with and without the DiskANN index, full-text and hybrid search, what the app's login is allowed to do, and what each search costs in Query Store.
+Connect with SSMS or VS Code to `tcp:localhost,1433` as `sa` (password in `.env`, with "Trust server certificate" checked) and open [`sql/walkthrough.sql`](sql/walkthrough.sql). The database is called `SqlServerRag`.
+
+- **Part 1** walks through the app's own searches: what's stored, vector search with and without the DiskANN index, full-text and hybrid search, what the app's login is allowed to do, and what each search costs in Query Store.
+- **Part 2** tries other SQL Server 2025 features on the same documents, in a separate scratch database: vector functions, the `json` type and JSON indexes, regular expressions, fuzzy matching, temporal, ledger and graph tables, error handling, and Change Tracking for keeping embeddings in sync. The last section shows `AI_GENERATE_EMBEDDINGS` and calling a model from T-SQL; it's commented out because it needs an HTTPS model endpoint.
 
 ## Results
 

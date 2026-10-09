@@ -1,10 +1,6 @@
 -- Hybrid search: take the top candidates by vector distance (exact) and by full-text relevance
 -- (FREETEXTTABLE), then fuse the two lists with Reciprocal Rank Fusion: score = sum of 1/(60 + rank).
 -- Also returns the distance of the closest chunk, so the app can refuse when nothing is close.
---
--- Example (in SSMS). The vector stands in for an embedded question; the text is searched with full-text:
---   DECLARE @q VECTOR(1024) = (SELECT TOP (1) embedding FROM dbo.chunks ORDER BY id);
---   EXEC dbo.search_hybrid @query_vector = @q, @query_text = N'fjarvinna', @top_k = 5, @candidates = 20;
 CREATE PROCEDURE dbo.search_hybrid
     @query_vector VECTOR(1024),
     @query_text   NVARCHAR(4000),
