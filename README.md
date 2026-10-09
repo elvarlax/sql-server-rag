@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/elvarlax/sql-server-rag/actions/workflows/ci.yml/badge.svg)
 
-A small chat app that answers questions about a set of documents, using SQL Server 2025 as the vector database. I built it to try out the new vector features in SQL Server and to find out, by measuring, what makes the answers good.
+A small chat app that answers questions about a set of documents, using SQL Server 2025 as the vector database. I built it to try out the new vector features in SQL Server and to find out, by measuring, what makes the answers good. It's also how I'm working through the material for Microsoft's [DP-800](https://learn.microsoft.com/credentials/certifications/resources/study-guides/dp-800) exam (Developing AI-Enabled Database Solutions).
 
 ![Asking how many vacation days employees get, then a follow-up question; the sources show how the follow-up was rewritten for search. A question the documents don't answer is refused.](assets/demo.gif)
 
@@ -40,7 +40,7 @@ Open http://localhost:8501, click **Ingest documents**, and ask something.
 
 ## Try it in SQL
 
-Connect with SSMS or VS Code to `tcp:localhost,1433` as `sa` (password in `.env`, with "Trust server certificate" checked). The database is called `SqlServerRag`. The [`sql/`](sql) folder has three scripts to run section by section:
+Connect with SSMS or VS Code to `tcp:localhost,1433` as `sa` (password in `.env`, with "Trust server certificate" checked). The database is called `SqlServerRag`. The [`sql/`](sql) folder has three scripts to run section by section, roughly following the topics in the DP-800 study guide:
 
 | Script | What it covers |
 |---|---|
