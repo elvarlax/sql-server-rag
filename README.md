@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/elvarlax/sql-server-rag/actions/workflows/ci.yml/badge.svg)
 
-A small chat app that answers questions about a set of documents, using SQL Server 2025 as the vector database. I built it to try out the new vector features in SQL Server and to find out, by measuring, what makes the answers good. It's also how I'm working through the material for Microsoft's [DP-800](https://learn.microsoft.com/credentials/certifications/resources/study-guides/dp-800) exam (Developing AI-Enabled Database Solutions).
+A small chat app that answers questions about a set of documents, using SQL Server 2025 as the vector database. I built it to try out the new vector features in SQL Server and to find out, by measuring, what makes the answers good. It's also a way to explore the material for Microsoft's [DP-800](https://learn.microsoft.com/credentials/certifications/resources/study-guides/dp-800) exam (Developing AI-Enabled Database Solutions).
 
 ![Asking how many vacation days employees get, then a follow-up question; the sources show how the follow-up was rewritten for search. A question the documents don't answer is refused.](assets/demo.gif)
 
