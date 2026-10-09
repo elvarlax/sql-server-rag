@@ -23,7 +23,7 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 ## Key Files
 - `app.py` — Streamlit UI (sidebar, example questions, chat, sources) and logging setup
 - `rag/config.py` — constants and environment variables
-- `rag/db.py` — `get_conn()` (as `rag_app` by default); `ingest()` drops the DiskANN index, replaces the rows and recreates the index (the table itself comes from `database/`)
+- `rag/db.py` — `get_conn()` (as `rag_app` by default, 5 s login timeout); `table_stats()` raises on database errors and `app.py` shows them in the main area; `ingest()` drops the DiskANN index, replaces the rows and recreates the index (the table itself comes from `database/`)
 - `rag/embeddings.py` — Ollama `embed()` (cached, for questions) and `embed_many()` (batched, for ingest)
 - `rag/retrieval.py` — calls the search procedures: `search_ann` if `sys.vector_indexes` has the index, else `search_exact`; `search_hybrid`; `retrieve()` refuses when even the closest chunk is beyond `MAX_DISTANCE`, and filters vector results per chunk
 - `rag/chat.py` — rewrite follow-ups (`standalone_question`) → retrieve → prompt → LLM; returns an `Answer` NamedTuple (text, rows, mode, search_query)
@@ -51,6 +51,8 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - pyodbc sends long strings as `ntext`, which can't convert to `VECTOR` — declare `@q VECTOR(1024)` from the JSON string first, then `EXEC proc @query_vector = @q`
 - DacFx models a full-text stoplist but not its words (`ALTER FULLTEXT STOPLIST ... ADD` fails to build) — the post-deploy script adds missing words and repopulates the index
 - `docker compose up --wait` doesn't wait for the one-off `schema` service to finish — use `docker compose wait schema`
+- ODBC Driver 18 retries a failed connection for ~15 s, even to a closed local port — `get_conn()` sets `timeout=5` and `ConnectRetryCount=0` (the timeout alone isn't enough)
+- In SSMS, `localhost` can reach a local Windows SQL Server instance over shared memory instead of the container — use `tcp:localhost,1433`
 - Fuzzy matching functions don't support `SQL_*` collations (the Docker default) — use `COLLATE`
 - No Icelandic stoplist or word breaker — the full-text index and `FREETEXTTABLE` queries both use `LANGUAGE 0`, with a custom stoplist; `DROP FULLTEXT STOPLIST IF EXISTS` isn't supported (use `IF EXISTS (...) DROP ...;`) and stoplist statements need a `;`
 - PDF text from justified paragraphs has runs of spaces — `split()` collapses them
