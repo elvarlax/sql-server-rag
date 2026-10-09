@@ -63,6 +63,14 @@ def show_sources(answer: Answer, question: str) -> None:
                 st.text(r.content)
 
 
+# In the main area, so the error is visible even when the sidebar is collapsed
+try:
+    n_chunks, has_diskann = cached_table_stats()
+except Exception as e:
+    st.error(f"Can't reach the database. Is SQL Server running, with the schema deployed? {e}")
+    st.stop()
+
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -72,12 +80,7 @@ with st.sidebar:
 
     st.subheader("Knowledge base")
 
-    try:
-        n_chunks, has_diskann = cached_table_stats()
-    except Exception as e:
-        st.error(f"Can't reach the database. Is SQL Server running, with the schema deployed? {e}")
-        st.stop()
-    files = sorted(f.name for f in DOCS_PATH.glob("*") if f.is_file() and not f.name.startswith("."))
+    files =sorted(f.name for f in DOCS_PATH.glob("*") if f.is_file() and not f.name.startswith("."))
 
     col1, col2 = st.columns(2)
     col1.metric("Documents", len(files))
