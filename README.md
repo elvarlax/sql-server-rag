@@ -47,7 +47,7 @@ You don't need .NET locally; the schema is built inside Docker. Open http://loca
 | | Hybrid search (default) | Vector search |
 |---|---|---|
 | Correct answer, held-out questions | **95%** (18 of 19) | 89% (17 of 19) |
-| Correct answer, tuning questions | 94% | 99% |
+| Correct answer, tuning questions | 92% | 99% |
 | Off-topic questions refused, held-out | 4 of 5 | 5 of 5 |
 
 I wrote the questions myself with the documents in front of me, so treat these numbers as a sanity check rather than a benchmark. The LLM isn't deterministic, so a question or two changes between runs; the earlier run of the same retrieval code refused 5 of 5 held-out off-topic questions with hybrid search and got 94% on the tuning questions.
@@ -115,7 +115,7 @@ The integration tests use generated embeddings, so they don't need Ollama, but t
 ## Limitations
 
 - The test set is small and self-written. Questions from real users would be a much better test.
-- One plausible but unanswerable question in the tuning set still gets answered from related text, so the prompt isn't perfect.
+- Plausible but unanswerable questions still sometimes get answered from related text (one in each set with hybrid search in the last run), so the prompt isn't perfect.
 - 101 chunks is just enough for DiskANN, and at that size it's slower than exact search (see above). You'd need thousands of chunks to see it pay off, which I haven't measured.
 
 ## License
