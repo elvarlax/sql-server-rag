@@ -43,6 +43,14 @@ jobs:
       - name: Build SQL project
         run: dotnet build database/SqlServerRag.sqlproj -c Release
 
+      # The built schema, downloadable from each run (free for public repos)
+      - name: Upload .dacpac
+        uses: actions/upload-artifact@v7
+        with:
+          name: SqlServerRag-dacpac
+          path: database/bin/Release/SqlServerRag.dacpac
+          if-no-files-found: error
+
   integration:
     runs-on: ubuntu-24.04
     needs: [test, database]

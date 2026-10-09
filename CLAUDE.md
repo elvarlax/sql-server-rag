@@ -39,7 +39,7 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - `tests/test_rag.py` — 22 unit tests, everything external is mocked
 - `tests/test_database.py` — integration tests (`pytest -m integration`, excluded by default): real SQL Server with the schema deployed, generated embeddings (no Ollama); they replace the chunks, so re-ingest afterwards
 - `database/deploy.sh` — entrypoint of the schema container: `publish` (default) or `drift` (DeployReport; fails on any difference)
-- `.github/workflows/ci.yml` — on `ubuntu-24.04` (pinned: `ubuntu-latest` moves to 26, which can break the ODBC driver install), on push and PRs: `ruff` + unit tests; SQL project build with code analysis; then an integration job that starts SQL Server with docker compose, deploys the schema, runs `pytest -m integration` and the drift check (badge in the README)
+- `.github/workflows/ci.yml` — on `ubuntu-24.04` (pinned: `ubuntu-latest` moves to 26, which can break the ODBC driver install), on push and PRs: `ruff` + unit tests; SQL project build with code analysis, uploaded as the `SqlServerRag-dacpac` artifact; then an integration job that starts SQL Server with docker compose, deploys the schema, runs `pytest -m integration` and the drift check (badge in the README)
 - `README.md` — its results table comes from `python evaluate.py`; update it (and the "What I learned" numbers) whenever a change moves them
 - `LICENSE` — MIT
 - `requirements.txt` — exact versions (`==`); `.github/dependabot.yml` proposes weekly updates for pip and GitHub Actions, and CI tests them
