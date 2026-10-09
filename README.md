@@ -11,7 +11,7 @@ The demo documents are 14 short policy documents (in Icelandic) for a made-up ac
 ## How it works
 
 ```
-ingest:  docs/ → 500-character chunks → bge-m3 embeddings → SQL Server (VECTOR(1024) column)
+ingest:  docs/ → 500-character chunks (50 overlap) → bge-m3 embeddings → SQL Server (VECTOR(1024) column)
 
 ask:     question → rewrite if it's a follow-up → embed → search SQL Server → top 5 chunks → LLM → answer with [n] citations
 ```
@@ -54,7 +54,7 @@ I wrote the questions myself with the documents in front of me, so treat these n
 - **The embedding model mattered most.** Switching from the English-focused `nomic-embed-text` to the multilingual `bge-m3` took correct answers from 81% to 97%.
 - **Hybrid search needed an Icelandic stopword list.** SQL Server doesn't have one, so common words like "á" and "að" matched almost every chunk. A custom stoplist, plus fusing only the top 20 results from each ranking, took it from 84% to 95%.
 - **Tuning numbers were too optimistic.** Vector search looked best on the tuning questions but dropped on held-out ones, while hybrid search held up. That's why hybrid is the default.
-- **Plausible off-topic questions are the hard part.** They sit as close to the text as real ones, so a distance cut-off can't catch them. A stricter prompt could.
+- **Plausible off-topic questions are the hard part.** They sit as close to the text as real ones, so a distance cut-off can't catch them. A stricter prompt ("related information about a different topic is not an answer") took refusals from 69% to 92% on the tuning questions.
 - **Follow-up questions need rewriting** into standalone questions before searching. That took them from 75% to 100%.
 - **Some ideas didn't help**, like sentence-aware chunking, so I left them out.
 
@@ -71,7 +71,7 @@ ORDER BY v.distance;
 
 - `SIMILAR_TO` only accepts a variable, and table columns are read through the table alias.
 - A DiskANN index needs at least 100 rows (the demo gives 101 chunks). Below that, the app uses exact `VECTOR_DISTANCE` search.
-- [`sql/sql_server_2025_examples.sql`](sql/sql_server_2025_examples.sql) has standalone examples of other new features: `AI_GENERATE_EMBEDDINGS`, JSON functions, regular expressions, fuzzy matching and graph tables.
+- [`sql/sql_server_2025_examples.sql`](sql/sql_server_2025_examples.sql) has standalone examples of other new features: `AI_GENERATE_EMBEDDINGS`, calling a model with `sp_invoke_external_rest_endpoint`, JSON functions, regular expressions, fuzzy matching, graph tables, and ways to keep embeddings in sync with changing data.
 
 ## Project layout
 
@@ -88,6 +88,7 @@ docs/               demo documents
 ## Limitations
 
 - The test set is small and self-written. Questions from real users would be a much better test.
+- One plausible but unanswerable question in the tuning set still gets answered from related text, so the prompt isn't perfect.
 - 101 chunks is just enough for DiskANN. You'd need thousands to see a real speed difference between approximate and exact search.
 
 ## License

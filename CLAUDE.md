@@ -13,7 +13,7 @@ A portfolio side project (public on GitHub): a RAG chat app that uses SQL Server
 
 ## Pipeline
 ```
-docs/ → 500-char chunks → bge-m3 → chunks.embedding VECTOR(1024)
+docs/ → 500-char chunks (50 overlap) → bge-m3 → chunks.embedding VECTOR(1024)
 question → (follow-up? LLM rewrites it as a standalone question) → embed → VECTOR_SEARCH (ANN) / VECTOR_DISTANCE (ENN) / hybrid RRF
          → nothing within MAX_DISTANCE? refuse without the LLM → numbered context → LLM (prompt refuses related-but-off-topic) → answer with [n] citations
 ```
@@ -27,12 +27,15 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - `rag/chat.py` — rewrite follow-ups (`standalone_question`) → retrieve → prompt → LLM; returns an `Answer` NamedTuple (text, rows, mode, search_query)
 - `sql/sql_server_2025_examples.sql` — standalone T-SQL examples, checked against Microsoft Learn
 - `docker-compose.yml` + `Dockerfile.sqlserver` — SQL Server 2025 with Full-Text Search
-- `docs/` — 14 demo PDFs for a fictional company; only `Demo_*.pdf` are committed (see .gitignore)
+- `docs/` — 14 demo PDFs for a fictional company, generated with an LLM and then reviewed (the README says so); only `Demo_*.pdf` are committed (see .gitignore)
 - `assets/demo.gif` — README demo (recorded with Playwright outside the project venv, converted with ffmpeg)
 - `questions.csv` — 120 evaluation questions (96 tuning, 24 holdout) in two sets (`set` column: `tuning` / `holdout`): question, source (`|` alternatives), expected answer text (`|` alternatives), previous question for follow-ups; the UI shows a few as examples
 - `evaluate.py` — scores retrieval and answers for both search modes, per set (needs live services)
 - **Never tune settings on the `holdout` set** — it measures how results carry over to new questions. Add new questions for tuning to the `tuning` set; if holdout results drive a change, write a fresh holdout set to confirm it
-- `tests/test_rag.py` — unit tests, everything external is mocked
+- `tests/test_rag.py` — 22 unit tests, everything external is mocked
+- `.github/workflows/ci.yml` — runs `ruff check .` and `pytest` on push and PRs (badge in the README)
+- `README.md` — its results table comes from `python evaluate.py`; update it (and the "What I learned" numbers) whenever a change moves them
+- `LICENSE` — MIT
 
 ## SQL Server 2025 gotchas
 - `VECTOR_SEARCH`: `SIMILAR_TO` must be a variable or column (declare `@q` first), and table columns come from the TABLE alias, not the function alias
