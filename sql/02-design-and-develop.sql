@@ -4,28 +4,30 @@
 -- window functions, regex, fuzzy matching, temporal/ledger/graph/in-memory tables, partitioning,
 -- columnstore and error handling, all on the app's documents.
 --
--- Connect with SSMS or VS Code (mssql extension):
---   Server:   tcp:localhost,1433   (tcp: makes sure you reach the Docker container)
---   Login:    sa, with SQL_PASSWORD from .env
---   Encrypt:  Mandatory, with "Trust server certificate" checked
--- Ingest the documents in the app first, then run one section at a time.
+-- Connect as described in 01-app-searches.sql, then run one section at a time.
 --
 -- Files 2 and 3 create their own objects, so they run in a separate scratch database,
--- SqlServerRagWalkthrough, with a copy of the app's chunks. The app's database stays untouched.
+-- SqlServerRagScratch, with a copy of the app's chunks. The app's database stays untouched.
 -- Section 8 (re)creates the scratch database: run it again any time to start over.
 -- ============================================================
 
 -- ── 8. Setup: a scratch database with a copy of the chunks ────
+-- Starting over also removes the server audit from section 22, which lives outside the database
 USE master;
-IF DB_ID(N'SqlServerRagWalkthrough') IS NOT NULL
+IF EXISTS (SELECT * FROM sys.server_audits WHERE name = N'rag_scratch_audit')
 BEGIN
-    ALTER DATABASE SqlServerRagWalkthrough SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-    DROP DATABASE SqlServerRagWalkthrough;
+    ALTER SERVER AUDIT rag_scratch_audit WITH (STATE = OFF);
+    DROP SERVER AUDIT rag_scratch_audit;
 END;
-CREATE DATABASE SqlServerRagWalkthrough;
+IF DB_ID(N'SqlServerRagScratch') IS NOT NULL
+BEGIN
+    ALTER DATABASE SqlServerRagScratch SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE SqlServerRagScratch;
+END;
+CREATE DATABASE SqlServerRagScratch;
 GO
 
-USE SqlServerRagWalkthrough;
+USE SqlServerRagScratch;
 -- JSON indexes and fuzzy string matching are preview features in SQL Server 2025
 ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON;
 GO
@@ -229,13 +231,12 @@ JOIN dbo.chunks AS c ON c.id = o.id
 JOIN dbo.chunks AS p ON p.id = o.previous_id
 ORDER BY shift_from_previous_chunk DESC;
 
--- Running totals and ranks with window aggregates. ROWS UNBOUNDED PRECEDING sets an explicit frame;
--- the default RANGE frame is slower and can't order by a key this long (900-byte limit)
-SELECT department, source, COUNT(*) AS chunks,
-       SUM(COUNT(*)) OVER (PARTITION BY department ORDER BY source ROWS UNBOUNDED PRECEDING) AS running_total_in_department,
-       RANK() OVER (ORDER BY COUNT(*) DESC) AS size_rank
-FROM dbo.chunks
-GROUP BY department, source;
+-- Running totals and ranks over the view from section 12. ROWS UNBOUNDED PRECEDING sets an explicit
+-- frame; the default RANGE frame is slower and can't order by a key this long (900-byte limit)
+SELECT department, source, chunks,
+       SUM(chunks) OVER (PARTITION BY department ORDER BY source ROWS UNBOUNDED PRECEDING) AS running_total_in_department,
+       RANK() OVER (ORDER BY chunks DESC) AS size_rank
+FROM dbo.document_stats;
 
 -- A correlated subquery: for each document, the closest chunk from a *different* document.
 -- The inner query refers to the outer row (d), so it runs once per document
@@ -254,15 +255,17 @@ ORDER BY d.source;
 GO
 
 -- ── 14. Regular expressions on the documents ───────────────────
+DECLARE @email NVARCHAR(100) = '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}';
+
 -- REGEXP_LIKE returns a boolean, so it goes in WHERE, CASE or CHECK
 SELECT COUNT(*) AS chunks_with_an_email
 FROM dbo.chunks
-WHERE REGEXP_LIKE(content, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}');
+WHERE REGEXP_LIKE(content, @email);
 
 -- REGEXP_SUBSTR: the first match; REGEXP_INSTR: where it starts (1-based)
-SELECT DISTINCT REGEXP_SUBSTR(content, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}') AS email
+SELECT DISTINCT REGEXP_SUBSTR(content, @email) AS email
 FROM dbo.chunks
-WHERE REGEXP_INSTR(content, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}') > 0;
+WHERE REGEXP_INSTR(content, @email) > 0;
 
 -- REGEXP_MATCHES: one row per match. Amounts in Icelandic format, like 8.000 kr
 SELECT TOP (10) c.source, m.match_value AS amount
@@ -360,9 +363,9 @@ GO
 
 -- In-memory OLTP: a memory-optimized table for chat sessions. SCHEMA_ONLY means the rows
 -- aren't written to disk, which suits short-lived state. It needs a memory-optimized filegroup
-ALTER DATABASE SqlServerRagWalkthrough ADD FILEGROUP imoltp CONTAINS MEMORY_OPTIMIZED_DATA;
-ALTER DATABASE SqlServerRagWalkthrough
-    ADD FILE (NAME = N'imoltp', FILENAME = N'/var/opt/mssql/data/SqlServerRagWalkthrough_imoltp') TO FILEGROUP imoltp;
+ALTER DATABASE SqlServerRagScratch ADD FILEGROUP imoltp CONTAINS MEMORY_OPTIMIZED_DATA;
+ALTER DATABASE SqlServerRagScratch
+    ADD FILE (NAME = N'imoltp', FILENAME = N'/var/opt/mssql/data/SqlServerRagScratch_imoltp') TO FILEGROUP imoltp;
 GO
 
 CREATE TABLE dbo.chat_sessions
@@ -408,6 +411,15 @@ SELECT DATEADD(DAY, s.value % 365, '2026-01-01'),
        CASE WHEN s.value % 3 = 0 THEN 2.0 ELSE 7.0 END + (s.value % 100) / 50.0
 FROM GENERATE_SERIES(1, 200000) AS s
 JOIN documents AS d ON d.n = s.value % d.total;
+
+-- Each month holds under 102,400 rows, so the rows wait in open (uncompressed) delta row groups.
+-- REORGANIZE compresses them into columnstore segments; the row group view shows the result
+ALTER INDEX cci_search_usage ON dbo.search_usage REORGANIZE WITH (COMPRESS_ALL_ROW_GROUPS = ON);
+
+SELECT state_desc, COUNT(*) AS row_groups, SUM(total_rows) AS total_rows, SUM(size_in_bytes) / 1024 AS size_kb
+FROM sys.dm_db_column_store_row_group_physical_stats
+WHERE object_id = OBJECT_ID(N'dbo.search_usage')
+GROUP BY state_desc;
 
 -- Rows per partition (one per month)
 SELECT p.partition_number, p.rows

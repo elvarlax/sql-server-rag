@@ -3,17 +3,13 @@
 -- Row-Level Security, Dynamic Data Masking, column-level encryption, auditing, performance
 -- (statistics, DMVs, blocking, isolation levels), Change Tracking, and calling models from T-SQL.
 --
--- Connect with SSMS or VS Code (mssql extension):
---   Server:   tcp:localhost,1433   (tcp: makes sure you reach the Docker container)
---   Login:    sa, with SQL_PASSWORD from .env
---   Encrypt:  Mandatory, with "Trust server certificate" checked
--- Ingest the documents in the app first, then run one section at a time.
+-- Connect as described in 01-app-searches.sql, then run one section at a time.
 --
--- Uses the scratch database from 02-design-and-develop.sql: run that file first.
--- To run this file again, run section 8 in 02 first; it recreates the scratch database.
+-- Uses the scratch database that section 8 of 02-design-and-develop.sql creates: run 02 first.
+-- To run this file again, run section 8 again; it starts the scratch database over.
 -- ============================================================
 
-USE SqlServerRagWalkthrough;
+USE SqlServerRagScratch;
 GO
 
 -- ── 19. Row-Level Security: each department sees only its own documents ──
@@ -71,10 +67,11 @@ CREATE TABLE dbo.contacts
 );
 
 INSERT INTO dbo.contacts (email, source)
-SELECT REGEXP_SUBSTR(content, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'), MIN(source)
-FROM dbo.chunks
-WHERE REGEXP_LIKE(content, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}')
-GROUP BY REGEXP_SUBSTR(content, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}');
+SELECT e.email, MIN(c.source)
+FROM dbo.chunks AS c
+CROSS APPLY (SELECT REGEXP_SUBSTR(c.content, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}') AS email) AS e
+WHERE e.email IS NOT NULL
+GROUP BY e.email;
 
 GRANT SELECT ON dbo.contacts TO hr_user;
 GO
@@ -97,7 +94,7 @@ GO
 -- Encrypt a column inside the database with a symmetric key, protected by a certificate.
 -- (Always Encrypted goes further: the keys stay with the client, so even sa can't read the data.
 -- It needs client-side configuration, so it can't be shown in T-SQL alone.)
-CREATE MASTER KEY ENCRYPTION BY PASSWORD = N'Walkthrough-Only-Passw0rd!';
+CREATE MASTER KEY ENCRYPTION BY PASSWORD = N'Scratch-Only-Passw0rd!';
 CREATE CERTIFICATE contacts_cert WITH SUBJECT = N'Protects the contacts key';
 CREATE SYMMETRIC KEY contacts_key WITH ALGORITHM = AES_256 ENCRYPTION BY CERTIFICATE contacts_cert;
 GO
@@ -120,18 +117,18 @@ GO
 -- ── 22. Auditing ───────────────────────────────────────────────
 -- A server audit writes to a file; a database audit specification says what to record
 USE master;
-IF EXISTS (SELECT * FROM sys.server_audits WHERE name = N'rag_walkthrough_audit')
+IF EXISTS (SELECT * FROM sys.server_audits WHERE name = N'rag_scratch_audit')
 BEGIN
-    ALTER SERVER AUDIT rag_walkthrough_audit WITH (STATE = OFF);
-    DROP SERVER AUDIT rag_walkthrough_audit;
+    ALTER SERVER AUDIT rag_scratch_audit WITH (STATE = OFF);
+    DROP SERVER AUDIT rag_scratch_audit;
 END;
-CREATE SERVER AUDIT rag_walkthrough_audit TO FILE (FILEPATH = N'/var/opt/mssql/data/');
-ALTER SERVER AUDIT rag_walkthrough_audit WITH (STATE = ON);
+CREATE SERVER AUDIT rag_scratch_audit TO FILE (FILEPATH = N'/var/opt/mssql/data/');
+ALTER SERVER AUDIT rag_scratch_audit WITH (STATE = ON);
 GO
 
-USE SqlServerRagWalkthrough;
+USE SqlServerRagScratch;
 CREATE DATABASE AUDIT SPECIFICATION contacts_reads
-    FOR SERVER AUDIT rag_walkthrough_audit
+    FOR SERVER AUDIT rag_scratch_audit
     ADD (SELECT ON OBJECT::dbo.contacts BY public)
     WITH (STATE = ON);
 GO
@@ -144,8 +141,9 @@ GO
 -- Who read the contacts, and with which statement (the audit writes asynchronously, hence the wait)
 WAITFOR DELAY '00:00:02';
 SELECT event_time, database_principal_name, statement
-FROM sys.fn_get_audit_file(N'/var/opt/mssql/data/rag_walkthrough_audit*.sqlaudit', DEFAULT, DEFAULT)
+FROM sys.fn_get_audit_file(N'/var/opt/mssql/data/rag_scratch_audit*.sqlaudit', DEFAULT, DEFAULT)
 WHERE object_name = N'contacts'
+  AND event_time >= (SELECT create_date FROM sys.databases WHERE name = DB_NAME())  -- this run only; older audit files stay on disk
 ORDER BY event_time DESC;
 GO
 
@@ -180,8 +178,8 @@ WHERE r.blocking_session_id <> 0;
 
 -- Isolation: with READ_COMMITTED_SNAPSHOT, readers see the last committed version instead of
 -- waiting on writers. SNAPSHOT gives a transaction one consistent view from its start
-ALTER DATABASE SqlServerRagWalkthrough SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
-ALTER DATABASE SqlServerRagWalkthrough SET ALLOW_SNAPSHOT_ISOLATION ON;
+ALTER DATABASE SqlServerRagScratch SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
+ALTER DATABASE SqlServerRagScratch SET ALLOW_SNAPSHOT_ISOLATION ON;
 SELECT name, is_read_committed_snapshot_on, snapshot_isolation_state_desc
 FROM sys.databases WHERE name = DB_NAME();
 
@@ -193,12 +191,9 @@ SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 GO
 
 -- ── 24. Keeping embeddings in sync: Change Tracking ────────────
--- When a document changes, only the changed chunks need new embeddings. Change Tracking records
--- which rows changed (not the old values); a job reads the changes since its last sync and
--- re-embeds those rows. The Azure Functions SQL trigger binding uses it too.
--- Other options: a DML trigger (synchronous, slows down writes; see section 25), Change Data Capture
--- (before/after values, needs SQL Server Agent) and Change Event Streaming (pushes changes to Azure Event Hubs)
-ALTER DATABASE SqlServerRagWalkthrough SET CHANGE_TRACKING = ON (CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON);
+-- When a document changes, only its changed chunks need new embeddings. Change Tracking records which
+-- rows changed; a job re-embeds those. (Alternatives: a trigger, section 25; CDC; Change Event Streaming.)
+ALTER DATABASE SqlServerRagScratch SET CHANGE_TRACKING = ON (CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON);
 ALTER TABLE dbo.chunks ENABLE CHANGE_TRACKING;
 GO
 
@@ -275,7 +270,7 @@ SELECT JSON_VALUE(@response, '$.result.choices[0].message.content') AS answer;
 
 -- ── Clean up: drop the scratch database and the server audit ───
 -- USE master;
--- ALTER SERVER AUDIT rag_walkthrough_audit WITH (STATE = OFF);
--- DROP SERVER AUDIT rag_walkthrough_audit;
--- ALTER DATABASE SqlServerRagWalkthrough SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
--- DROP DATABASE SqlServerRagWalkthrough;
+-- ALTER SERVER AUDIT rag_scratch_audit WITH (STATE = OFF);
+-- DROP SERVER AUDIT rag_scratch_audit;
+-- ALTER DATABASE SqlServerRagScratch SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+-- DROP DATABASE SqlServerRagScratch;

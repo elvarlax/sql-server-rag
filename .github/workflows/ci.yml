@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: [main]
 
+# ubuntu-24.04 rather than ubuntu-latest, which is moving to 26 and could break the ODBC driver install
 jobs:
   test:
     runs-on: ubuntu-24.04
