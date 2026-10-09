@@ -40,7 +40,7 @@ Open http://localhost:8501, click **Ingest documents**, and ask something.
 
 ## Try it in SQL
 
-Connect with SSMS or VS Code to `tcp:localhost,1433` as `sa` (password in `.env`, with "Trust server certificate" checked) and open [`sql/playground.sql`](sql/playground.sql). It walks through what's stored, vector search with and without the DiskANN index, full-text and hybrid search, what the app's login is allowed to do, and what each search costs in Query Store.
+Connect with SSMS or VS Code to `tcp:localhost,1433` as `sa` (password in `.env`, with "Trust server certificate" checked) and open [`sql/playground.sql`](sql/playground.sql). The database is called `SqlServerRag`. It walks through what's stored, vector search with and without the DiskANN index, full-text and hybrid search, what the app's login is allowed to do, and what each search costs in Query Store.
 
 ## Results
 
@@ -69,7 +69,7 @@ pytest                  # unit tests
 pytest -m integration   # tests against the real database
 ```
 
-CI runs both on every push and builds the SQL project.
+CI runs both on every push. It also builds the SQL project into a `.dacpac`, deploys it to SQL Server in Docker, checks the database for schema drift, and saves the `.dacpac` as a downloadable artifact.
 
 ## License
 
