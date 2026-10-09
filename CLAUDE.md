@@ -1,7 +1,7 @@
 # RAG on SQL Server 2025 — Claude Code Instructions
 
 ## Project Overview
-A portfolio side project (public on GitHub): a RAG chat app that uses SQL Server 2025 as the vector store. Keep it simple, clean and professional. Public-facing text (README, UI, comments) should read as a hands-on exploration of the technology, not a production product: plain, first-person, human, and credible, with no marketing tone and no overclaiming. It's also a hands-on way to explore the DP-800 exam material (Developing AI-Enabled Database Solutions): mentioning that is fine, modestly, but never claim a certification or a pass. The app stays a minimal RAG pipeline; DP-800 practice beyond it goes in the `sql/` scripts.
+A portfolio side project (public on GitHub): a RAG chat app that uses SQL Server 2025 as the vector store. Keep it simple, clean and professional. Public-facing text (README, UI, comments) should read as a hands-on exploration of the technology, not a production product: plain, first-person, human, and credible, with no marketing tone and no overclaiming. The `sql/` scripts are a hands-on way to explore the DP-800 exam material (Developing AI-Enabled Database Solutions): mentioning that for the SQL part is fine, modestly, but never claim a certification or a pass, and don't frame the whole project as exam prep. The app stays a minimal RAG pipeline; DP-800 practice beyond it goes in the `sql/` scripts.
 
 ## Stack
 - **LLM**: any OpenAI-compatible API (OpenAI, Azure OpenAI, Ollama, Mistral, ...) via one `OpenAI` client, configured with `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`. Default `gpt-6-luna` — cheapest model with good Icelandic
