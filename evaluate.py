@@ -118,11 +118,13 @@ def ann_recall(questions: list[dict]) -> str:
 
 
 # Runtime stats per search procedure. search_ann runs its query as dynamic SQL, which Query Store
-# doesn't attribute to the procedure, so that query is recognised by its VECTOR_SEARCH call.
+# doesn't attribute to the procedure, so that query is recognised by its parameter list and
+# VECTOR_SEARCH call (anchored at the start, so this report's own text doesn't match).
 # A procedure runs several statements, so its cost per call is the sum over them divided by calls.
 QUERY_STORE_REPORT = """
     WITH per_query AS (
-        SELECT CASE WHEN t.query_sql_text LIKE N'%VECTOR_SEARCH(%' THEN N'search_ann'
+        SELECT CASE WHEN t.query_sql_text LIKE N'(@query_vector vector(1024),@top_k int)%VECTOR_SEARCH(%'
+                    THEN N'search_ann'
                     ELSE OBJECT_NAME(q.object_id) END AS procedure_name,
             SUM(rs.count_executions) AS calls,
             SUM(rs.avg_duration * rs.count_executions) AS duration_us,

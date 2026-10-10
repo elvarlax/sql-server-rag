@@ -84,6 +84,9 @@ DECLARE @q VECTOR(1024) = (SELECT TOP (1) embedding FROM dbo.chunks ORDER BY id)
 EXEC dbo.search_exact @query_vector = @q, @top_k = 3;  -- allowed: rag_search
 
 BEGIN TRY
+    -- If EXECUTE AS failed, this batch is still running as sa, and the DROP would succeed
+    IF SUSER_NAME() <> N'rag_app'
+        THROW 50000, N'Not running as rag_app, so the DROP TABLE test is skipped.', 1;
     DROP TABLE dbo.chunks;  -- not allowed
 END TRY
 BEGIN CATCH
@@ -107,7 +110,7 @@ JOIN sys.query_store_query_text AS t ON t.query_text_id = q.query_text_id
 JOIN sys.query_store_plan AS p ON p.query_id = q.query_id
 JOIN sys.query_store_runtime_stats AS rs ON rs.plan_id = p.plan_id
 WHERE q.object_id IN (OBJECT_ID(N'dbo.search_exact'), OBJECT_ID(N'dbo.search_hybrid'))
-   OR t.query_sql_text LIKE N'%VECTOR_SEARCH(%'
+   OR t.query_sql_text LIKE N'(@query_vector vector(1024),@top_k int)%VECTOR_SEARCH(%'  -- search_ann's dynamic SQL, not this report
 GROUP BY q.object_id, t.query_sql_text
 ORDER BY runs DESC;
 GO
