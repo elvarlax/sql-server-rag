@@ -5,8 +5,7 @@
 --
 -- Connect as described in 01-app-searches.sql, then run one section at a time.
 --
--- Uses the scratch database that section 8 of 02-design-and-develop.sql creates: run 02 first.
--- To run this file again, run section 8 again; it starts the scratch database over.
+-- Uses the scratch database from 02-design-and-develop.sql: run 02 first, and to rerun this file, rerun section 8 of 02.
 -- ============================================================
 
 USE SqlServerRagScratch;
@@ -138,12 +137,14 @@ SELECT COUNT(*) AS contacts FROM dbo.contacts;
 REVERT;
 GO
 
--- Who read the contacts, and with which statement (the audit writes asynchronously, hence the wait)
+-- Who read the contacts, and with which statement. Reading the audit's current file shows this run only;
+-- files from earlier runs stay on disk. The audit writes asynchronously, hence the wait
 WAITFOR DELAY '00:00:02';
+DECLARE @audit_file NVARCHAR(260) = (SELECT audit_file_path FROM sys.dm_server_audit_status WHERE name = N'rag_scratch_audit');
+
 SELECT event_time, database_principal_name, statement
-FROM sys.fn_get_audit_file(N'/var/opt/mssql/data/rag_scratch_audit*.sqlaudit', DEFAULT, DEFAULT)
+FROM sys.fn_get_audit_file(@audit_file, DEFAULT, DEFAULT)
 WHERE object_name = N'contacts'
-  AND event_time >= (SELECT create_date FROM sys.databases WHERE name = DB_NAME())  -- this run only; older audit files stay on disk
 ORDER BY event_time DESC;
 GO
 
