@@ -48,7 +48,7 @@ Connect with SSMS or VS Code to `tcp:localhost,1433` as `sa` (password in `.env`
 | [`02-design-and-develop.sql`](sql/02-design-and-develop.sql) | Constraints and sequences, the `json` type and JSON indexes, views, functions and triggers, CTEs and window functions, regular expressions, fuzzy matching, temporal, ledger, graph and in-memory tables, partitioning, columnstore, and error handling |
 | [`03-secure-and-optimize.sql`](sql/03-secure-and-optimize.sql) | Row-Level Security (also in vector search), Dynamic Data Masking, column-level encryption, auditing, execution statistics, DMVs, isolation levels, Change Tracking for keeping embeddings in sync, and calling a model from T-SQL |
 
-Scripts 2 and 3 work on a copy of the documents in a separate scratch database, so the app's database stays as it is.
+Scripts 2 and 3 work on a copy of the documents in a separate scratch database, so the app's database stays as it is. The scripts were written by Claude, an AI assistant, and every section has been run against the database.
 
 ## Results
 
