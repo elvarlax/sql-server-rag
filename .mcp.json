@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "sql-server-rag": {
+      "type": "stdio",
+      "command": "${CLAUDE_PROJECT_DIR:-.}/.venv/Scripts/python",
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/mcp_server.py"]
+    }
+  }
+}

@@ -1,8 +1,9 @@
 -- ============================================================
--- 1 of 3: THE APP'S SEARCHES (sections 1–7), in the SqlServerRag database
---   01-app-searches.sql         the app's own searches
---   02-design-and-develop.sql   tables, JSON, programmability, advanced T-SQL, specialized tables
---   03-secure-and-optimize.sql  Row-Level Security, masking, encryption, auditing, performance
+-- 1 of 4: THE APP'S SEARCHES (sections 1–7), in the SqlServerRag database
+--   01-app-searches.sql            the app's own searches
+--   02-design-and-develop.sql      tables, JSON, programmability, advanced T-SQL, specialized tables
+--   03-secure-and-optimize.sql     Row-Level Security, masking, encryption, auditing, performance
+--   04-vector-search-at-scale.sql  exact vs DiskANN search, float32 vs float16, on 20,000 vectors
 --
 -- Connect with SSMS or VS Code (mssql extension):
 --   Server:   tcp:localhost,1433   (tcp: makes sure you reach the Docker container)

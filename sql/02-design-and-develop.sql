@@ -1,12 +1,12 @@
 -- ============================================================
--- 2 of 3: DESIGN AND DEVELOP (sections 8–18)
+-- 2 of 4: DESIGN AND DEVELOP (sections 8–18)
 -- Tables and constraints, sequences, the json type, a view, functions and a trigger, CTEs and
 -- window functions, regex, fuzzy matching, temporal/ledger/graph/in-memory tables, partitioning,
 -- columnstore and error handling, all on the app's documents.
 --
 -- Connect as described in 01-app-searches.sql, then run one section at a time.
 --
--- Files 2 and 3 create their own objects, so they run in a separate scratch database,
+-- Files 2 to 4 create their own objects, so they run in a separate scratch database,
 -- SqlServerRagScratch, with a copy of the app's chunks. The app's database stays untouched.
 -- Section 8 (re)creates the scratch database: run it again any time to start over.
 -- ============================================================

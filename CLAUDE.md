@@ -26,8 +26,9 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - `rag/db.py` — `get_conn()` (as `rag_app` by default, 5 s login timeout); `ingest()` drops the DiskANN index, replaces the rows and recreates the index (the table itself comes from `database/`)
 - `rag/embeddings.py` — Ollama `embed()` (cached, for questions) and `embed_many()` (batched, for ingest)
 - `rag/retrieval.py` — calls the search procedures: `search_ann` if `sys.vector_indexes` has the index, else `search_exact`; `search_hybrid`; `retrieve()` refuses when even the closest chunk is beyond `MAX_DISTANCE`, and filters vector results per chunk
+- `mcp_server.py` — MCP server (MCP SDK 2.x `MCPServer`, stdio) with two read-only tools: `search_documents` (calls `retrieve()`, returns numbered passages with sources) and `database_status` (calls `table_stats()`); connects as `rag_app`, needs no LLM key; registered for Claude Code in `.mcp.json`
 - `rag/chat.py` — rewrite follow-ups (`standalone_question`) → retrieve → prompt → LLM; returns an `Answer` NamedTuple (text, rows, mode, search_query)
-- `sql/01-03-*.sql` — T-SQL to run section by section in SSMS/VS Code (topics are in each file's header and the README). 01 uses the app's database; 02 and 03 use the scratch database `SqlServerRagScratch` (section 8 of 02 starts it over), so the app's schema and the drift check stay clean. Keep every runnable section working when the three files run in order, twice; rerun them after changing the procedures, permissions or the scripts
+- `sql/01-04-*.sql` — T-SQL to run section by section in SSMS/VS Code (topics are in each file's header and the README). 01 uses the app's database; 02 to 04 use the scratch database `SqlServerRagScratch` (section 8 of 02 starts it over), so the app's schema and the drift check stay clean. 04 builds 20,000 noisy copies of the embeddings and compares exact/DiskANN and float32/float16 (about 5 minutes; its numbers are in the README). Keep every runnable section working when the four files run in order, twice; rerun them after changing the procedures, permissions or the scripts
 - `database/` — SQL Database Project `SqlServerRag.sqlproj` (database `SqlServerRag`): `Tables/`, `FullText/`, `Procedures/` (search_ann, search_exact, search_hybrid), `Security/` (roles), `Scripts/` (pre-deploy: PREVIEW_FEATURES; post-deploy: stopwords and the `rag_app` login); Query Store on (capture mode ALL) via project properties; `Dockerfile` builds and publishes it
 - `docker-compose.yml` + `Dockerfile.sqlserver` — SQL Server 2025 with Full-Text Search, plus the one-off `schema` service that deploys `database/`
 - `docs/` — 14 demo PDFs for a fictional company, generated with an LLM and then reviewed (the README says so); only `Demo_*.pdf` are committed (see .gitignore)
@@ -36,6 +37,7 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - `evaluate.py` — scores retrieval and answers for both search modes, per set; then ANN recall vs exact search and a Query Store cost report per procedure (clears Query Store first, connects as `sa` for that) — needs live services
 - **Never tune settings on the `holdout` set** — it measures how results carry over to new questions. Add new questions for tuning to the `tuning` set; if holdout results drive a change, write a fresh holdout set to confirm it
 - `tests/test_rag.py` — 22 unit tests, everything external is mocked
+- `tests/test_mcp_server.py` — 6 unit tests for the MCP tools, called through `MCPServer` the way a client would; retrieval and the database are mocked
 - `tests/test_database.py` — integration tests (`pytest -m integration`, excluded by default): real SQL Server with the schema deployed, generated embeddings (no Ollama); they replace the chunks, so re-ingest afterwards
 - `database/deploy.sh` — entrypoint of the schema container: `publish` (default) or `drift` (DeployReport; fails on any difference)
 - `.github/workflows/ci.yml` — on push and PRs: `ruff` + unit tests; SQL project build with code analysis, uploaded as the `SqlServerRag-dacpac` artifact; then an integration job that starts SQL Server with docker compose, deploys the schema, runs `pytest -m integration` and the drift check (badge in the README)
@@ -57,6 +59,8 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - An UPDATE on an append-only ledger table fails at compile time (37359), which TRY/CATCH can't catch in the same batch — run it through `sp_executesql`
 - In the `sql/` scripts: `LAG` doesn't accept `VECTOR` (lag the id), a RANGE window frame can't order by a key over 900 bytes (use `ROWS`), and `VECTORPROPERTY` returns `sql_variant` (`CAST` it)
 - No Icelandic stoplist or word breaker — the full-text index and `FREETEXTTABLE` queries both use `LANGUAGE 0`, with a custom stoplist; `DROP FULLTEXT STOPLIST IF EXISTS` isn't supported (use `IF EXISTS (...) DROP ...;`) and stoplist statements need a `;`
+- `VECTOR(n, float16)` is a preview (needs PREVIEW_FEATURES) and can't be cast from a float32 vector (Msg 42238) — convert through the JSON string; DiskANN works on float16 columns
+- `CREATE VECTOR INDEX` needs `QUOTED_IDENTIFIER ON` (Msg 1934) — SSMS has it on, `sqlcmd` needs `-I`
 - PDF text from justified paragraphs has runs of spaces — `split()` collapses them
 
 ## Coding Rules

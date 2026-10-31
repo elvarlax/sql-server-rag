@@ -1,5 +1,5 @@
 -- ============================================================
--- 3 of 3: SECURE AND OPTIMIZE (sections 19–25)
+-- 3 of 4: SECURE AND OPTIMIZE (sections 19–25)
 -- Row-Level Security, Dynamic Data Masking, column-level encryption, auditing, performance
 -- (statistics, DMVs, blocking, isolation levels), Change Tracking, and calling models from T-SQL.
 --
