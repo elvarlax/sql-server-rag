@@ -51,7 +51,7 @@ Connect with SSMS or VS Code to `tcp:localhost,1433` as `sa` (password in `.env`
 | [`03-secure-and-optimize.sql`](sql/03-secure-and-optimize.sql) | Row-Level Security (also in vector search), Dynamic Data Masking, column-level encryption, auditing, execution statistics, DMVs, isolation levels, Change Tracking for keeping embeddings in sync, and calling a model from T-SQL |
 | [`04-vector-search-at-scale.sql`](sql/04-vector-search-at-scale.sql) | Exact search against DiskANN, and float32 against half-precision float16 vectors, on 20,000 vectors made from the real embeddings plus noise: storage, index build time, query time and recall |
 
-Scripts 2 to 4 work on a copy of the documents in a separate scratch database, so the app's database stays as it is. The scripts were written by Claude, an AI assistant, and every section has been run against the database.
+Scripts 2 to 4 work on a copy of the documents in a separate scratch database, so the app's database stays as it is. Every section has been run against the database.
 
 ## Use it from Claude Code (MCP)
 
@@ -107,7 +107,7 @@ pytest                  # unit tests
 pytest -m integration   # tests against the real database
 ```
 
-CI runs both on every push. It also builds the SQL project into a `.dacpac`, deploys it to SQL Server in Docker, checks the database for schema drift, and saves the `.dacpac` as a downloadable artifact.
+The integration tests also check what each login may do, for example that the MCP server's login can't change or delete anything. CI runs both on every push. It also builds the SQL project into a `.dacpac`, deploys it to SQL Server in Docker, checks the database for schema drift, and saves the `.dacpac` as a downloadable artifact.
 
 ## License
 
