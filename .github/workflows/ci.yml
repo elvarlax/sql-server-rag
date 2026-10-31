@@ -59,6 +59,7 @@ jobs:
       # Throwaway passwords for the CI database
       SQL_PASSWORD: Ci-Sa-Passw0rd!
       SQL_APP_PASSWORD: Ci-App-Passw0rd!
+      SQL_MCP_PASSWORD: Ci-Mcp-Passw0rd!
 
     steps:
       - uses: actions/checkout@v7

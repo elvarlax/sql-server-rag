@@ -12,8 +12,8 @@ from rag.config import (
     DB_NAME,
     DISKANN_MIN_ROWS,
     EMBED_DIMS,
-    SQL_APP_PASSWORD,
-    SQL_APP_USER,
+    SQL_LOGIN,
+    SQL_PASSWORDS,
     SQL_SERVER,
 )
 from rag.embeddings import embed_many
@@ -24,12 +24,15 @@ log = logging.getLogger(__name__)
 VECTOR_PARAM = f"CAST(CAST(? AS NVARCHAR(MAX)) AS VECTOR({EMBED_DIMS}))"
 
 
-def get_conn(user: str = SQL_APP_USER, password: str = SQL_APP_PASSWORD):
+def get_conn(user: str = SQL_LOGIN, password: str | None = None):
     """A pyodbc connection to the database, closed when the `with` block ends.
 
     The app connects as rag_app, which can only run the search procedures and replace the
-    chunks (see database/Security). The schema itself is deployed from the SQL project in database/.
+    chunks; the MCP server as rag_mcp, which can only search and read (see database/Security).
+    The password of rag_app and rag_mcp comes from .env. The schema itself is deployed from the
+    SQL project in database/.
     """
+    password = SQL_PASSWORDS[user] if password is None else password
     return closing(pyodbc.connect(
         f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={SQL_SERVER};"
         f"DATABASE={DB_NAME};UID={user};PWD={password};TrustServerCertificate=yes;ConnectRetryCount=0;",

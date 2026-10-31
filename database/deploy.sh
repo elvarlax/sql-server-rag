@@ -11,11 +11,11 @@ TARGET="Server=db;Database=SqlServerRag;User ID=sa;Password=$SQL_PASSWORD;TrustS
 case "${1:-publish}" in
   publish)
     sqlpackage /Action:Publish /SourceFile:$DACPAC /TargetConnectionString:"$TARGET" \
-      /Variables:AppPassword="$SQL_APP_PASSWORD" /p:DropIndexesNotInSource=False
+      /Variables:AppPassword="$SQL_APP_PASSWORD" /Variables:McpPassword="$SQL_MCP_PASSWORD" /p:DropIndexesNotInSource=False
     ;;
   drift)
     sqlpackage /Action:DeployReport /SourceFile:$DACPAC /TargetConnectionString:"$TARGET" \
-      /Variables:AppPassword="$SQL_APP_PASSWORD" /p:DropIndexesNotInSource=False /OutputPath:/tmp/report.xml
+      /Variables:AppPassword="$SQL_APP_PASSWORD" /Variables:McpPassword="$SQL_MCP_PASSWORD" /p:DropIndexesNotInSource=False /OutputPath:/tmp/report.xml
     if grep -q "<Operation " /tmp/report.xml; then
       cat /tmp/report.xml
       echo "Schema drift: the database differs from the project"

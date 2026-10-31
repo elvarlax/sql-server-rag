@@ -8,7 +8,7 @@ A portfolio side project (public on GitHub): a RAG chat app that uses SQL Server
 - **Embeddings**: `bge-m3` via Ollama (local, multilingual, 1024 dims) — replaced `nomic-embed-text` after evaluation (81% → 97%)
 - **Vector store**: SQL Server 2025 — `VECTOR(1024)` + DiskANN index (needs 100+ chunks; the 14 demo docs give 101)
 - **Schema**: SDK-style SQL Database Project (`database/`, Microsoft.Build.Sql) — table, full-text index + stoplist, search stored procedures, roles; `docker compose` builds the .dacpac and publishes it with SqlPackage
-- **Security**: the app logs in as `rag_app` (roles `rag_search`: EXECUTE on the search procedures; `rag_ingest`: SELECT/INSERT/DELETE/ALTER on `dbo.chunks`); `sa` only deploys the schema and reads Query Store in `evaluate.py`
+- **Security**: the app logs in as `rag_app` (roles `rag_search`: EXECUTE on the search procedures; `rag_ingest`: SELECT/INSERT/DELETE/ALTER on `dbo.chunks`); the MCP server as `rag_mcp` (`rag_search` + `rag_read`: SELECT on `dbo.chunks`, so it can't change or delete anything); `SQL_LOGIN` picks the login (default `rag_app`, `.mcp.json` sets `rag_mcp`); `sa` only deploys the schema and reads Query Store in `evaluate.py`
 - **Search**: hybrid is the default (won on both held-out sets) — Full-Text Search (`FREETEXTTABLE`, custom Icelandic stoplist) + Reciprocal Rank Fusion over the top 20 of each ranking; vector-only mode is also available
 - **Ingestion**: LlamaIndex `SimpleDirectoryReader`
 - **UI**: Streamlit (theme in `.streamlit/config.toml`)
@@ -23,10 +23,10 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 ## Key Files
 - `app.py` — Streamlit UI (sidebar, example questions, chat, sources) and logging setup
 - `rag/config.py` — constants and environment variables
-- `rag/db.py` — `get_conn()` (as `rag_app` by default, 5 s login timeout); `ingest()` drops the DiskANN index, replaces the rows and recreates the index (the table itself comes from `database/`)
+- `rag/db.py` — `get_conn()` (as `SQL_LOGIN`, `rag_app` by default, with that login's password from `SQL_PASSWORDS`; 5 s login timeout); `ingest()` drops the DiskANN index, replaces the rows and recreates the index (the table itself comes from `database/`)
 - `rag/embeddings.py` — Ollama `embed()` (cached, for questions) and `embed_many()` (batched, for ingest)
 - `rag/retrieval.py` — calls the search procedures: `search_ann` if `sys.vector_indexes` has the index, else `search_exact`; `search_hybrid`; `retrieve()` refuses when even the closest chunk is beyond `MAX_DISTANCE`, and filters vector results per chunk
-- `mcp_server.py` — MCP server (MCP SDK 2.x `MCPServer`, stdio) with two read-only tools: `search_documents` (calls `retrieve()`, returns numbered passages with sources) and `database_status` (calls `table_stats()`); connects as `rag_app`, needs no LLM key; registered for Claude Code in `.mcp.json`
+- `mcp_server.py` — MCP server (MCP SDK 2.x `MCPServer`, stdio) with two read-only tools: `search_documents` (calls `retrieve()`, returns numbered passages with sources) and `database_status` (calls `table_stats()`); connects as the read-only `rag_mcp` and refuses to start as any other login, needs no LLM key; registered for Claude Code in `.mcp.json` (Windows path; macOS/Linux users add a local registration, see the README)
 - `rag/chat.py` — rewrite follow-ups (`standalone_question`) → retrieve → prompt → LLM; returns an `Answer` NamedTuple (text, rows, mode, search_query)
 - `sql/01-04-*.sql` — T-SQL to run section by section in SSMS/VS Code (topics are in each file's header and the README). 01 uses the app's database; 02 to 04 use the scratch database `SqlServerRagScratch` (section 8 of 02 starts it over), so the app's schema and the drift check stay clean. 04 builds 20,000 noisy copies of the embeddings and compares exact/DiskANN and float32/float16 (about 5 minutes; its numbers are in the README). Keep every runnable section working when the four files run in order, twice; rerun them after changing the procedures, permissions or the scripts
 - `database/` — SQL Database Project `SqlServerRag.sqlproj` (database `SqlServerRag`): `Tables/`, `FullText/`, `Procedures/` (search_ann, search_exact, search_hybrid), `Security/` (roles), `Scripts/` (pre-deploy: PREVIEW_FEATURES; post-deploy: stopwords and the `rag_app` login); Query Store on (capture mode ALL) via project properties; `Dockerfile` builds and publishes it
@@ -37,8 +37,8 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - `evaluate.py` — scores retrieval and answers for both search modes, per set; then ANN recall vs exact search and a Query Store cost report per procedure (clears Query Store first, connects as `sa` for that) — needs live services
 - **Never tune settings on the `holdout` set** — it measures how results carry over to new questions. Add new questions for tuning to the `tuning` set; if holdout results drive a change, write a fresh holdout set to confirm it
 - `tests/test_rag.py` — 22 unit tests, everything external is mocked
-- `tests/test_mcp_server.py` — 6 unit tests for the MCP tools, called through `MCPServer` the way a client would; retrieval and the database are mocked
-- `tests/test_database.py` — integration tests (`pytest -m integration`, excluded by default): real SQL Server with the schema deployed, generated embeddings (no Ollama); they replace the chunks, so re-ingest afterwards
+- `tests/test_mcp_server.py` — 7 unit tests for the MCP tools, called through `MCPServer` the way a client would (retrieval and the database are mocked), and that the server won't start as `rag_app`
+- `tests/test_database.py` — integration tests (`pytest -m integration`, excluded by default): real SQL Server with the schema deployed, generated embeddings (no Ollama); also what `rag_app` and `rag_mcp` may do; they replace the chunks, so re-ingest afterwards
 - `database/deploy.sh` — entrypoint of the schema container: `publish` (default) or `drift` (DeployReport; fails on any difference)
 - `.github/workflows/ci.yml` — on push and PRs: `ruff` + unit tests; SQL project build with code analysis, uploaded as the `SqlServerRag-dacpac` artifact; then an integration job that starts SQL Server with docker compose, deploys the schema, runs `pytest -m integration` and the drift check (badge in the README)
 - `README.md` — its results table comes from `python evaluate.py`; update it (and the "What I learned" numbers) whenever a change moves them
@@ -61,11 +61,12 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - No Icelandic stoplist or word breaker — the full-text index and `FREETEXTTABLE` queries both use `LANGUAGE 0`, with a custom stoplist; `DROP FULLTEXT STOPLIST IF EXISTS` isn't supported (use `IF EXISTS (...) DROP ...;`) and stoplist statements need a `;`
 - `VECTOR(n, float16)` is a preview (needs PREVIEW_FEATURES) and can't be cast from a float32 vector (Msg 42238) — convert through the JSON string; DiskANN works on float16 columns
 - `CREATE VECTOR INDEX` needs `QUOTED_IDENTIFIER ON` (Msg 1934) — SSMS has it on, `sqlcmd` needs `-I`
+- While the DiskANN index exists, INSERT/UPDATE/DELETE on `dbo.chunks` fail with 42231 (read-only table) before permissions are checked — test a login's rights with `fn_my_permissions`, not by running the statement
 - PDF text from justified paragraphs has runs of spaces — `split()` collapses them
 
 ## Coding Rules
 - Keep it as simple as possible — no features beyond the RAG pipeline and its UI. Database practices around it (SQL project, stored procedures, least-privilege login, Query Store) are in scope
-- Measure retrieval/prompt changes with `python evaluate.py` before keeping them (e.g. a hybrid distance cut-off and sentence-aware chunking both measured worse, so neither is used); don't add tuning parameters that only win a single question
+- Measure retrieval/prompt changes with `python evaluate.py` before keeping them (e.g. a hybrid distance cut-off, sentence-aware chunking, a lower full-text weight in RRF and prefix matching (`CONTAINSTABLE` with `"word*"`) all measured worse (the last two on the holdout set, after winning on the tuning set), so none is used); don't add tuning parameters that only win a single question
 - Don't swallow errors to fall back silently — check state explicitly (e.g. `has_vector_index`, `has_fulltext_index`) so real failures surface
 - No unnecessary abstractions
 - English UI and English comments
@@ -77,7 +78,8 @@ question → (follow-up? LLM rewrites it as a standalone question) → embed →
 - The `rag` package must not import streamlit
 - Only SQL Server (and the one-off schema deploy) runs in Docker; the app runs locally so it can reach Ollama
 - Schema changes go in `database/`, never in Python; the app's login can't create or drop objects
-- Secrets: `SQL_PASSWORD` (sa) is only for docker compose and evaluate.py's Query Store report; the app uses `SQL_APP_PASSWORD`
+- Secrets: `SQL_PASSWORD` (sa) is only for docker compose and evaluate.py's Query Store report; the app uses `SQL_APP_PASSWORD`, the MCP server `SQL_MCP_PASSWORD`
+- Nothing an AI agent can call may change data: MCP tools stay read-only and run as `rag_mcp`, never `rag_app` or `sa`
 
 ## Running
 ```bash

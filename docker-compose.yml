@@ -28,6 +28,7 @@ services:
     environment:
       SQL_PASSWORD: ${SQL_PASSWORD}
       SQL_APP_PASSWORD: ${SQL_APP_PASSWORD}
+      SQL_MCP_PASSWORD: ${SQL_MCP_PASSWORD}
     depends_on:
       db:
         condition: service_healthy

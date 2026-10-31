@@ -14,12 +14,14 @@ LLM_API_KEY  = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY", "")
 LLM_MODEL    = os.getenv("LLM_MODEL") or "gpt-6-luna"  # cheap, fast and good at Icelandic
 LLM_READY    = bool(LLM_API_KEY or LLM_BASE_URL)      # local servers like Ollama need no key
 
-# SQL Server. The app connects as rag_app (created when the schema in database/ is deployed);
-# the sa password is only needed by docker compose and by evaluate.py for its Query Store report.
-SQL_SERVER       = os.getenv("SQL_SERVER", "localhost,1433")
-SQL_APP_USER     = "rag_app"
-SQL_APP_PASSWORD = os.getenv("SQL_APP_PASSWORD", "")
-SQL_PASSWORD     = os.getenv("SQL_PASSWORD", "")
+# SQL Server. Each process has its own login, created when the schema in database/ is deployed:
+# the app is rag_app (search and replace the chunks), the MCP server rag_mcp (search and read only;
+# .mcp.json sets SQL_LOGIN). The sa password is only needed by docker compose and by evaluate.py
+# for its Query Store report.
+SQL_SERVER    = os.getenv("SQL_SERVER", "localhost,1433")
+SQL_LOGIN     = os.getenv("SQL_LOGIN", "rag_app")
+SQL_PASSWORDS = {"rag_app": os.getenv("SQL_APP_PASSWORD", ""), "rag_mcp": os.getenv("SQL_MCP_PASSWORD", "")}
+SQL_PASSWORD  = os.getenv("SQL_PASSWORD", "")
 DB_NAME          = "SqlServerRag"
 
 # Documents and embeddings

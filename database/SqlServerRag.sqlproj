@@ -16,6 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <SqlCmdVariable Include="AppPassword" />
+    <SqlCmdVariable Include="McpPassword" />
   </ItemGroup>
   <ItemGroup>
     <Build Remove="Scripts\**" />

@@ -3,7 +3,8 @@
     "sql-server-rag": {
       "type": "stdio",
       "command": "${CLAUDE_PROJECT_DIR:-.}/.venv/Scripts/python",
-      "args": ["${CLAUDE_PROJECT_DIR:-.}/mcp_server.py"]
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/mcp_server.py"],
+      "env": { "SQL_LOGIN": "rag_mcp" }
     }
   }
 }

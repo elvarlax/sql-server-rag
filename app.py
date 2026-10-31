@@ -13,7 +13,7 @@ from rag.config import (
     LLM_MODEL,
     LLM_READY,
     QUESTIONS_PATH,
-    SQL_APP_PASSWORD,
+    SQL_PASSWORDS,
 )
 from rag.db import ingest, table_stats
 from rag.retrieval import SEARCH_MODES
@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(
 
 st.set_page_config(page_title="RAG on SQL Server 2025", page_icon=":material/manage_search:")
 
-if not (LLM_READY and SQL_APP_PASSWORD):
+if not (LLM_READY and SQL_PASSWORDS["rag_app"]):
     st.error("Set SQL_APP_PASSWORD and an LLM (LLM_API_KEY, plus LLM_BASE_URL for providers other than OpenAI) in .env")
     st.stop()
 

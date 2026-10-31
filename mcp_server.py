@@ -5,11 +5,13 @@ the same search as the chat app and returns numbered passages with their sources
 reports what's loaded. The agent writes the answer itself, so no LLM key is needed here; only SQL
 Server and Ollama (for embeddings).
 
-The agent never writes SQL: the tools only run the fixed searches, as rag_app, which can't create or
-drop anything in the database (see database/Security).
+The agent never writes SQL: the tools only run the fixed searches. They connect as rag_mcp, a login
+that can only search and read, so nothing the agent does can delete or change data (see
+database/Security). The server refuses to start as any other login.
 
-Run it over stdio from an MCP client, for example in .mcp.json:
-    {"mcpServers": {"sql-server-rag": {"command": "python", "args": ["mcp_server.py"]}}}
+Run it over stdio from an MCP client, with SQL_LOGIN=rag_mcp, for example in .mcp.json:
+    {"mcpServers": {"sql-server-rag": {"command": "python", "args": ["mcp_server.py"],
+                                       "env": {"SQL_LOGIN": "rag_mcp"}}}}
 """
 import logging
 from typing import Literal
@@ -18,7 +20,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from typing_extensions import TypedDict  # pydantic needs it on Python < 3.12
 
-from rag.config import MAX_DISTANCE
+from rag.config import MAX_DISTANCE, SQL_LOGIN
 from rag.db import table_stats
 from rag.retrieval import retrieve
 
@@ -87,4 +89,7 @@ def database_status() -> DatabaseStatus:
 
 
 if __name__ == "__main__":
+    # rag_app may delete and replace chunks; an AI agent must not be able to
+    if SQL_LOGIN != "rag_mcp":
+        raise SystemExit(f"The MCP server must log in as rag_mcp, not {SQL_LOGIN}: set SQL_LOGIN=rag_mcp")
     mcp.run()  # stdio

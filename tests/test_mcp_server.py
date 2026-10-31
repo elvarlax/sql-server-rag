@@ -1,5 +1,8 @@
 """Unit tests for the MCP server. Retrieval and the database are mocked, so no services are needed."""
 import asyncio
+import os
+import subprocess
+import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -63,3 +66,11 @@ def test_database_status():
         result = call("database_status")
     assert result["chunks"] == 101
     assert result["vector_index"].startswith("DiskANN")
+
+
+def test_server_refuses_to_start_as_the_app_login():
+    # rag_app may delete chunks, so the server must only ever run as the read-only rag_mcp
+    env = {**os.environ, "SQL_LOGIN": "rag_app"}
+    result = subprocess.run([sys.executable, "mcp_server.py"], env=env, capture_output=True, text=True, timeout=60, check=False)
+    assert result.returncode != 0
+    assert "must log in as rag_mcp" in result.stderr

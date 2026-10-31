@@ -37,3 +37,18 @@ IF USER_ID(N'rag_app') IS NULL
 
 ALTER ROLE rag_search ADD MEMBER rag_app;
 ALTER ROLE rag_ingest ADD MEMBER rag_app;
+GO
+
+-- ── MCP server login ────────────────────────────────────────────────────────────
+-- The MCP server lets an AI agent search the documents, so its login can only search and read:
+-- no rag_ingest, so no INSERT, UPDATE, DELETE or ALTER. The password comes from SQL_MCP_PASSWORD.
+IF SUSER_ID(N'rag_mcp') IS NULL
+    CREATE LOGIN rag_mcp WITH PASSWORD = N'$(McpPassword)';
+ELSE
+    ALTER LOGIN rag_mcp WITH PASSWORD = N'$(McpPassword)';
+
+IF USER_ID(N'rag_mcp') IS NULL
+    CREATE USER rag_mcp FOR LOGIN rag_mcp;
+
+ALTER ROLE rag_search ADD MEMBER rag_mcp;
+ALTER ROLE rag_read ADD MEMBER rag_mcp;

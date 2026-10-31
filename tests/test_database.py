@@ -14,6 +14,7 @@ import json
 import math
 import random
 import time
+from functools import partial
 from unittest.mock import patch
 
 import pyodbc
@@ -128,6 +129,46 @@ def test_the_app_login_is_not_sa_and_has_only_its_two_roles():
             " ON r.principal_id = m.role_principal_id WHERE m.member_principal_id = USER_ID()"
         )}
     assert roles == {"rag_search", "rag_ingest"}
+
+
+def test_the_mcp_tools_work_as_the_mcp_login():
+    as_mcp = partial(get_conn, "rag_mcp")
+    with patch("rag.db.get_conn", as_mcp), patch("rag.retrieval.get_conn", as_mcp):
+        assert table_stats() == (N_DOCS, True)  # reading the table and its indexes
+        for mode in ("hybrid", "vector"):
+            rows, used = search(document(42), mode)
+            assert (used, rows[0].source) == (mode, "doc042.txt")
+
+
+def test_the_mcp_login_may_only_read_the_table():
+    # Checked as permissions, not by running DELETE or UPDATE: while the DiskANN index exists, SQL Server
+    # rejects those for being on a read-only table (42231) before it checks permissions
+    with get_conn("rag_mcp") as conn:
+        permissions = {r.permission_name for r in conn.execute(
+            "SELECT permission_name FROM fn_my_permissions('dbo.chunks', 'OBJECT') WHERE subentity_name = ''"
+        )}
+    assert permissions == {"SELECT"}
+
+
+@pytest.mark.parametrize("statement", [
+    "TRUNCATE TABLE dbo.chunks",
+    "DROP INDEX idx_chunks_vector ON dbo.chunks",
+    "DROP TABLE dbo.chunks",
+])
+def test_the_mcp_login_cannot_empty_or_drop_the_table(statement):
+    # pyodbc doesn't autocommit, so if a statement got through, closing the connection would roll it back
+    with get_conn("rag_mcp") as conn, pytest.raises(pyodbc.Error, match="permission|does not exist"):
+        conn.execute(statement)
+
+
+def test_the_mcp_login_can_only_search_and_read():
+    with get_conn("rag_mcp") as conn:
+        assert tuple(conn.execute("SELECT SUSER_NAME(), IS_SRVROLEMEMBER('sysadmin')").fetchone()) == ("rag_mcp", 0)
+        roles = {r.name for r in conn.execute(
+            "SELECT r.name FROM sys.database_role_members m JOIN sys.database_principals r"
+            " ON r.principal_id = m.role_principal_id WHERE m.member_principal_id = USER_ID()"
+        )}
+    assert roles == {"rag_search", "rag_read"}
 
 
 def test_query_store_is_recording_queries():
