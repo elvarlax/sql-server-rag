@@ -20,7 +20,7 @@ import re
 import time
 
 from rag.chat import chat
-from rag.config import EMBED_MODEL, LLM_MODEL, QUESTIONS_PATH, SQL_PASSWORD, TOP_K
+from rag.config import EMBED_DIMS, EMBED_MODEL, LLM_MODEL, QUESTIONS_PATH, TOP_K
 from rag.db import get_conn, table_stats
 from rag.embeddings import embed
 from rag.retrieval import DECLARE_QUERY_VECTOR, SEARCH_MODES
@@ -121,9 +121,9 @@ def ann_recall(questions: list[dict]) -> str:
 # doesn't attribute to the procedure, so that query is recognised by its parameter list and
 # VECTOR_SEARCH call (anchored at the start, so this report's own text doesn't match).
 # A procedure runs several statements, so its cost per call is the sum over them divided by calls.
-QUERY_STORE_REPORT = """
+QUERY_STORE_REPORT = f"""
     WITH per_query AS (
-        SELECT CASE WHEN t.query_sql_text LIKE N'(@query_vector vector(1024),@top_k int)%VECTOR_SEARCH(%'
+        SELECT CASE WHEN t.query_sql_text LIKE N'(@query_vector vector({EMBED_DIMS}),@top_k int)%VECTOR_SEARCH(%'
                     THEN N'search_ann'
                     ELSE OBJECT_NAME(q.object_id) END AS procedure_name,
             SUM(rs.count_executions) AS calls,
@@ -146,7 +146,7 @@ QUERY_STORE_REPORT = """
 
 
 def print_query_store_report() -> None:
-    with get_conn("sa", SQL_PASSWORD) as conn:
+    with get_conn("sa") as conn:
         conn.execute("EXEC sys.sp_query_store_flush_db")
         rows = conn.execute(QUERY_STORE_REPORT).fetchall()
     print("\n## Search cost (Query Store)\n")
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     print(f"\n{n_chunks} chunks · {'DiskANN (ANN)' if has_diskann else 'exact ENN'} · {EMBED_MODEL} · {LLM_MODEL}")
 
     # Start Query Store from scratch, so the cost report covers this run only
-    with get_conn("sa", SQL_PASSWORD) as conn:
+    with get_conn("sa") as conn:
         conn.autocommit = True
         conn.execute("ALTER DATABASE CURRENT SET QUERY_STORE CLEAR")
 

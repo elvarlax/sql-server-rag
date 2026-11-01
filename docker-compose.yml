@@ -1,5 +1,5 @@
 # SQL Server 2025 with Full-Text Search, plus a one-off container that deploys the schema
-# from the SQL project in database/. Start with: docker compose up -d --wait
+# from the SQL project in database/. Start with: docker compose up -d && docker compose wait schema
 # The app itself runs locally (streamlit run app.py) so it can reach Ollama.
 name: sql-server-rag
 

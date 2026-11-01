@@ -44,8 +44,9 @@ def test_search_returns_numbered_passages_with_sources():
 
 def test_search_passes_vector_mode_through():
     with patch("mcp_server.retrieve", return_value=([], "vector")) as retrieve:
-        call("search_documents", question="orlof", mode="vector")
+        result = call("search_documents", question="orlof", mode="vector")
     retrieve.assert_called_once_with("orlof", "vector")
+    assert result == {"mode": "vector", "passages": []}  # nothing close enough: no passages
 
 
 def test_search_rejects_unknown_mode():
@@ -53,12 +54,6 @@ def test_search_rejects_unknown_mode():
     with patch("mcp_server.retrieve") as retrieve, pytest.raises(ToolError):
         asyncio.run(mcp_server.mcp.call_tool("search_documents", {"question": "orlof", "mode": "keyword"}))
     retrieve.assert_not_called()
-
-
-def test_off_topic_question_returns_no_passages():
-    with patch("mcp_server.retrieve", return_value=([], "hybrid")):
-        result = call("search_documents", question="Hver vann HM 2018?")
-    assert result["passages"] == []
 
 
 def test_database_status():

@@ -6,7 +6,7 @@ from rag.embeddings import embed
 
 log = logging.getLogger(__name__)
 
-SEARCH_MODES = {"hybrid": "Hybrid", "vector": "Vector"}  # first is the default
+SEARCH_MODES = {"hybrid": "Hybrid", "vector": "Vector"}
 
 # pyodbc sends long strings as ntext, which can't convert to VECTOR, so the procedures get a variable
 DECLARE_QUERY_VECTOR = f"DECLARE @q VECTOR({EMBED_DIMS}) = {VECTOR_PARAM};"

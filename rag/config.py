@@ -20,9 +20,9 @@ LLM_READY    = bool(LLM_API_KEY or LLM_BASE_URL)      # local servers like Ollam
 # for its Query Store report.
 SQL_SERVER    = os.getenv("SQL_SERVER", "localhost,1433")
 SQL_LOGIN     = os.getenv("SQL_LOGIN", "rag_app")
-SQL_PASSWORDS = {"rag_app": os.getenv("SQL_APP_PASSWORD", ""), "rag_mcp": os.getenv("SQL_MCP_PASSWORD", "")}
-SQL_PASSWORD  = os.getenv("SQL_PASSWORD", "")
-DB_NAME          = "SqlServerRag"
+SQL_PASSWORDS = {"rag_app": os.getenv("SQL_APP_PASSWORD", ""), "rag_mcp": os.getenv("SQL_MCP_PASSWORD", ""),
+                 "sa": os.getenv("SQL_PASSWORD", "")}
+DB_NAME       = "SqlServerRag"
 
 # Documents and embeddings
 DOCS_PATH      = ROOT / "docs"

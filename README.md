@@ -107,7 +107,7 @@ pytest                  # unit tests
 pytest -m integration   # tests against the real database
 ```
 
-The integration tests also check what each login may do, for example that the MCP server's login can't change or delete anything. CI runs both on every push. It also builds the SQL project into a `.dacpac`, deploys it to SQL Server in Docker, checks the database for schema drift, and saves the `.dacpac` as a downloadable artifact.
+CI runs both on every push. The integration tests also check what each login may do, for example that the MCP server's login can only read the table and run the searches. It also builds the SQL project into a `.dacpac`, deploys it to SQL Server in Docker, checks the database for schema drift, and saves the `.dacpac` as a downloadable artifact.
 
 ## License
 

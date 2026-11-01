@@ -80,7 +80,7 @@ with st.sidebar:
 
     st.subheader("Knowledge base")
 
-    files =sorted(f.name for f in DOCS_PATH.glob("*") if f.is_file() and not f.name.startswith("."))
+    files = sorted(f.name for f in DOCS_PATH.glob("*") if f.is_file() and not f.name.startswith("."))
 
     col1, col2 = st.columns(2)
     col1.metric("Documents", len(files))

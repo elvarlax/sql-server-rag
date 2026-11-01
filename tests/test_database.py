@@ -1,7 +1,8 @@
 """Integration tests against a real SQL Server, with the schema from database/ deployed.
 
 They check what the unit tests can't: that the schema deploys, that ingest builds the DiskANN
-index, that the search procedures return the right chunks, and what the app's login may do.
+index, that the search procedures return the right chunks, and what the app's and the MCP
+server's logins may do.
 Ollama isn't needed: embeddings are generated from a hash of the text.
 
 They replace the chunks with test data, so they only run when asked for (and in CI):
@@ -14,15 +15,14 @@ import json
 import math
 import random
 import time
-from functools import partial
 from unittest.mock import patch
 
 import pyodbc
 import pytest
 
-from rag.config import DISKANN_MIN_ROWS, EMBED_DIMS, SQL_PASSWORD
+from rag.config import DISKANN_MIN_ROWS, EMBED_DIMS
 from rag.db import get_conn, ingest, table_stats
-from rag.retrieval import retrieve
+from rag.retrieval import DECLARE_QUERY_VECTOR, retrieve
 
 pytestmark = pytest.mark.integration
 
@@ -85,8 +85,7 @@ def test_approximate_and_exact_search_agree_on_the_nearest_chunk():
     with get_conn() as conn:
         top = {}
         for procedure in ("dbo.search_ann", "dbo.search_exact"):
-            sql = f"DECLARE @q VECTOR({EMBED_DIMS}) = CAST(CAST(? AS NVARCHAR(MAX)) AS VECTOR({EMBED_DIMS}));" \
-                  f" EXEC {procedure} @query_vector = @q, @top_k = 5"
+            sql = f"{DECLARE_QUERY_VECTOR} EXEC {procedure} @query_vector = @q, @top_k = 5"
             top[procedure] = conn.execute(sql, fake_embedding(document(7))).fetchall()[0].source
     assert top == {"dbo.search_ann": "doc007.txt", "dbo.search_exact": "doc007.txt"}
 
@@ -121,19 +120,23 @@ def test_the_app_login_cannot_change_the_schema(statement):
         conn.execute(statement)
 
 
-def test_the_app_login_is_not_sa_and_has_only_its_two_roles():
-    with get_conn() as conn:
-        assert tuple(conn.execute("SELECT SUSER_NAME(), IS_SRVROLEMEMBER('sysadmin')").fetchone()) == ("rag_app", 0)
+@pytest.mark.parametrize(("login", "expected_roles"), [
+    ("rag_app", {"rag_search", "rag_ingest"}),
+    ("rag_mcp", {"rag_search", "rag_read"}),  # search and read only
+])
+def test_each_login_is_not_sa_and_has_only_its_roles(login, expected_roles):
+    with get_conn(login) as conn:
+        assert tuple(conn.execute("SELECT SUSER_NAME(), IS_SRVROLEMEMBER('sysadmin')").fetchone()) == (login, 0)
         roles = {r.name for r in conn.execute(
             "SELECT r.name FROM sys.database_role_members m JOIN sys.database_principals r"
             " ON r.principal_id = m.role_principal_id WHERE m.member_principal_id = USER_ID()"
         )}
-    assert roles == {"rag_search", "rag_ingest"}
+    assert roles == expected_roles
 
 
 def test_the_mcp_tools_work_as_the_mcp_login():
-    as_mcp = partial(get_conn, "rag_mcp")
-    with patch("rag.db.get_conn", as_mcp), patch("rag.retrieval.get_conn", as_mcp):
+    # As if SQL_LOGIN=rag_mcp, which .mcp.json sets: every get_conn() without a user connects as rag_mcp
+    with patch("rag.db.SQL_LOGIN", "rag_mcp"):
         assert table_stats() == (N_DOCS, True)  # reading the table and its indexes
         for mode in ("hybrid", "vector"):
             rows, used = search(document(42), mode)
@@ -161,18 +164,8 @@ def test_the_mcp_login_cannot_empty_or_drop_the_table(statement):
         conn.execute(statement)
 
 
-def test_the_mcp_login_can_only_search_and_read():
-    with get_conn("rag_mcp") as conn:
-        assert tuple(conn.execute("SELECT SUSER_NAME(), IS_SRVROLEMEMBER('sysadmin')").fetchone()) == ("rag_mcp", 0)
-        roles = {r.name for r in conn.execute(
-            "SELECT r.name FROM sys.database_role_members m JOIN sys.database_principals r"
-            " ON r.principal_id = m.role_principal_id WHERE m.member_principal_id = USER_ID()"
-        )}
-    assert roles == {"rag_search", "rag_read"}
-
-
 def test_query_store_is_recording_queries():
-    with get_conn("sa", SQL_PASSWORD) as conn:
+    with get_conn("sa") as conn:
         state, mode = conn.execute(
             "SELECT actual_state_desc, query_capture_mode_desc FROM sys.database_query_store_options"
         ).fetchone()

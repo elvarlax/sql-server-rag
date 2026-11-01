@@ -4,7 +4,6 @@ from contextlib import closing
 from pathlib import Path
 
 import pyodbc
-from llama_index.core import SimpleDirectoryReader
 
 from rag.config import (
     CHUNK_OVERLAP,
@@ -24,18 +23,18 @@ log = logging.getLogger(__name__)
 VECTOR_PARAM = f"CAST(CAST(? AS NVARCHAR(MAX)) AS VECTOR({EMBED_DIMS}))"
 
 
-def get_conn(user: str = SQL_LOGIN, password: str | None = None):
+def get_conn(user: str | None = None):
     """A pyodbc connection to the database, closed when the `with` block ends.
 
     The app connects as rag_app, which can only run the search procedures and replace the
     chunks; the MCP server as rag_mcp, which can only search and read (see database/Security).
-    The password of rag_app and rag_mcp comes from .env. The schema itself is deployed from the
-    SQL project in database/.
+    Without a user it's SQL_LOGIN. Passwords come from .env. The schema itself is deployed from
+    the SQL project in database/.
     """
-    password = SQL_PASSWORDS[user] if password is None else password
+    user = user or SQL_LOGIN
     return closing(pyodbc.connect(
         f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={SQL_SERVER};"
-        f"DATABASE={DB_NAME};UID={user};PWD={password};TrustServerCertificate=yes;ConnectRetryCount=0;",
+        f"DATABASE={DB_NAME};UID={user};PWD={SQL_PASSWORDS[user]};TrustServerCertificate=yes;ConnectRetryCount=0;",
         timeout=5,  # fail after 5 s when SQL Server isn't reachable; without both settings the driver retries for ~15 s
     ))
 
@@ -81,6 +80,9 @@ def ingest(docs_path: Path) -> None:
     The table, its full-text index and the search procedures come from the SQL project in
     database/; the full-text index follows the new rows by itself (CHANGE_TRACKING AUTO).
     """
+    # Imported here: only ingest needs LlamaIndex, and it's slow to import (the MCP server never ingests)
+    from llama_index.core import SimpleDirectoryReader
+
     # Embed first (the slow part), so the existing chunks stay searchable until the new data is ready
     documents = SimpleDirectoryReader(str(docs_path)).load_data()
     rows = []

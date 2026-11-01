@@ -9,9 +9,7 @@ The agent never writes SQL: the tools only run the fixed searches. They connect 
 that can only search and read, so nothing the agent does can delete or change data (see
 database/Security). The server refuses to start as any other login.
 
-Run it over stdio from an MCP client, with SQL_LOGIN=rag_mcp, for example in .mcp.json:
-    {"mcpServers": {"sql-server-rag": {"command": "python", "args": ["mcp_server.py"],
-                                       "env": {"SQL_LOGIN": "rag_mcp"}}}}
+Run it over stdio from an MCP client with SQL_LOGIN=rag_mcp (see .mcp.json).
 """
 import logging
 from typing import Literal
