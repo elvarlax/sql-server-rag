@@ -4,7 +4,7 @@
 
 A small chat app that answers questions about a set of documents, using SQL Server 2025 as the vector database. I built it to try out the new vector features in SQL Server and to find out, by measuring, what makes the answers good.
 
-**In short:** hybrid search (vector + full-text) answered 95% of held-out questions correctly, against 89% for vector search alone ([Results](#results)). At 20,000 vectors, a DiskANN index made search 2.5 to 5.5 times faster than exact search (it varied between runs) while finding about 99% of the same results, and half-precision vectors halved the storage ([`sql/04`](sql/04-vector-search-at-scale.sql)).
+**In short:** hybrid search (vector + full-text) answered 95% of held-out questions correctly, against 89% for vector search alone ([Results](#results)). At 20,000 vectors, a DiskANN index made search 2.5 to 5.5 times faster than exact search (it varied between runs) while finding about 99% of the same results, and half-precision vectors halved the storage ([`sql/04`](sql/04-vector-search-at-scale.sql)). The same search is also available to Claude Code through an MCP server with fixed, read-only tools ([MCP](#use-it-from-claude-code-mcp)).
 
 ![Asking how many vacation days employees get, then a follow-up question; the sources show how the follow-up was rewritten for search. A question the documents don't answer is refused.](assets/demo.gif)
 
