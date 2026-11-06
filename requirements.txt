@@ -1,6 +1,6 @@
 # App
 streamlit==1.66.1
-openai==3.42.0
+openai==3.42.1
 ollama==0.6.3
 pyodbc==5.3.0
 python-dotenv==1.2.4
