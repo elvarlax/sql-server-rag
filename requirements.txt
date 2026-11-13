@@ -1,8 +1,8 @@
 # App
-streamlit==1.66.1
-openai==3.42.1
+streamlit==1.67.0
+openai==3.48.0
 ollama==0.6.3
-pyodbc==5.3.0
+pyodbc==5.5.0
 python-dotenv==1.2.4
 mcp==2.3.0
 typing-extensions==4.16.0
@@ -14,4 +14,4 @@ docx2txt==0.9
 
 # Development
 pytest==9.2.0
-ruff==0.17.3
+ruff==0.17.4
